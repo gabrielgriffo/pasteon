@@ -2,6 +2,7 @@
 
 import { OllamaProvider } from './OllamaProvider';
 import { GeminiProvider } from './GeminiProvider';
+import { GroqProvider } from './GroqProvider';
 import { config, AI_PROVIDERS, type AIProvider } from './config';
 
 export interface ProviderStatus {
@@ -21,16 +22,17 @@ export interface GenerationResult {
 
 /**
  * Serviço unificado de IA que implementa o Adapter Pattern
- * Permite trocar entre Ollama (local) e Gemini (cloud) de forma transparente
+ * Permite trocar entre Ollama (local), Gemini (cloud) e Groq (cloud ultra-rápido) de forma transparente
  */
 class AIService {
-  private providers: Record<AIProvider, OllamaProvider | GeminiProvider>;
+  private providers: Record<AIProvider, OllamaProvider | GeminiProvider | GroqProvider>;
   private currentProvider: AIProvider;
 
   constructor() {
     this.providers = {
       [AI_PROVIDERS.OLLAMA]: new OllamaProvider(),
       [AI_PROVIDERS.GEMINI]: new GeminiProvider(),
+      [AI_PROVIDERS.GROQ]: new GroqProvider(),
     };
 
     this.currentProvider = config.activeProvider;
@@ -39,7 +41,7 @@ class AIService {
   /**
    * Retorna o provider ativo atual
    */
-  getActiveProvider(): OllamaProvider | GeminiProvider {
+  getActiveProvider(): OllamaProvider | GeminiProvider | GroqProvider {
     return this.providers[this.currentProvider];
   }
 
@@ -107,7 +109,7 @@ class AIService {
   async checkProviders(): Promise<Record<AIProvider, ProviderStatus>> {
     const status = {} as Record<AIProvider, ProviderStatus>;
 
-    for (const [name, provider] of Object.entries(this.providers) as [AIProvider, OllamaProvider | GeminiProvider][]) {
+    for (const [name, provider] of Object.entries(this.providers) as [AIProvider, OllamaProvider | GeminiProvider | GroqProvider][]) {
       const available = await provider.isAvailable();
       status[name] = {
         name: provider.getName(),
@@ -123,7 +125,7 @@ class AIService {
    * Lista todos os providers disponíveis
    */
   listProviders(): Array<{ id: AIProvider; name: string; active: boolean }> {
-    return (Object.entries(this.providers) as [AIProvider, OllamaProvider | GeminiProvider][]).map(
+    return (Object.entries(this.providers) as [AIProvider, OllamaProvider | GeminiProvider | GroqProvider][]).map(
       ([key, provider]) => ({
         id: key,
         name: provider.getName(),

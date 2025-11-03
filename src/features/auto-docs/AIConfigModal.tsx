@@ -199,6 +199,46 @@ export function AIConfigModal({
                 </div>
               </div>
             </div>
+
+            {/* Groq (Cloud - Ultra Fast) */}
+            <div
+              className={`rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+                selectedProvider === AI_PROVIDERS.GROQ
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted hover:border-primary/50'
+              }`}
+              onClick={() => setSelectedProvider(AI_PROVIDERS.GROQ)}
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    checked={selectedProvider === AI_PROVIDERS.GROQ}
+                    onChange={() => setSelectedProvider(AI_PROVIDERS.GROQ)}
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    <span className="font-semibold">Groq (Cloud - Ultra Rápido)</span>
+                    {testResults?.groq && (
+                      <Badge variant={testResults.groq.available ? 'default' : 'destructive'}>
+                        {testResults.groq.available ? 'Disponível' : 'Indisponível'}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    API ultra-rápida com modelos open-source. Requer chave de API gratuita.
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1 mt-2">
+                    <p>• Modelo: {import.meta.env.VITE_GROQ_MODEL || 'llama3-8b-8192'}</p>
+                    <p>• API Key: {import.meta.env.VITE_GROQ_API_KEY ? '✓ Configurada' : '✗ Não configurada'}</p>
+                    <p>• Vantagens: Inferência extremamente rápida, modelos Llama/Mistral/Qwen</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <Separator />

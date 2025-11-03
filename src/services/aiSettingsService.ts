@@ -51,6 +51,16 @@ const DEFAULT_SETTINGS: Record<AIProvider, RateLimitConfig> = {
     currentRpd: 0,
     lastResetDay: getCurrentDay(),
   },
+  groq: {
+    rpmEnabled: true,
+    rpmLimit: 30,
+    currentRpm: 0,
+    lastResetMinute: Date.now(),
+    rpdEnabled: true,
+    rpdLimit: 14400,
+    currentRpd: 0,
+    lastResetDay: getCurrentDay(),
+  },
 };
 
 /**

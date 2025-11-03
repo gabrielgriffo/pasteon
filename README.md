@@ -48,7 +48,7 @@ Todos os campos são salvos no banco de dados com detalhes sobre tipo, valor de 
 - **Histórico completo** - Campos de descrição preparados para documentação futura
 
 ### 🤖 Geração Automática de Descrições com IA
-- **Dual AI Integration** - Suporte para Ollama (local) e Google Gemini (cloud)
+- **Triple AI Integration** - Suporte para Ollama (local), Google Gemini (cloud) e Groq (cloud ultra-rápido)
 - **Dashboard de Estatísticas** - Visualize campos documentados vs pendentes em tempo real
 - **Processamento em Lote** - Gera descrições automáticas para todos os campos sem descrição
 - **Progresso ao Vivo** - Acompanhe o processamento com estimativas de tempo
@@ -247,7 +247,7 @@ Acesse: `http://localhost:5173`
 
 ## 🤖 Configuração da IA para Auto-Documentação
 
-O sistema suporta dois providers de IA para gerar descrições automáticas dos campos:
+O sistema suporta três providers de IA para gerar descrições automáticas dos campos:
 
 ### Opção 1: Google Gemini (Recomendado para Início Rápido) ⚡
 
@@ -312,9 +312,41 @@ VITE_OLLAMA_MODEL=llama3.2
 
 ---
 
+### Opção 3: Groq (Cloud - Ultra Rápido) ⚡🚀
+
+**Vantagens:**
+- ✅ Inferência extremamente rápida (até 10x mais rápido que outros providers)
+- ✅ API gratuita com tier generoso (~30 requisições/min)
+- ✅ Modelos open-source (Llama, Mistral, Qwen)
+- ✅ Não requer instalação local
+
+**Como Configurar:**
+
+1. Obtenha sua API Key gratuita em: https://console.groq.com/
+2. No arquivo `.env`, configure:
+```env
+VITE_AI_PROVIDER=groq
+VITE_GROQ_API_KEY=sua_chave_aqui
+VITE_GROQ_MODEL=llama3-8b-8192
+```
+3. Reinicie o servidor de desenvolvimento
+4. Acesse "Auto Docs" → "Configurar IA" para testar a conexão
+
+**Modelos Disponíveis:**
+- `llama3-8b-8192` - Rápido e eficiente (recomendado)
+- `llama3-70b-8192` - Mais poderoso
+- `mixtral-8x7b-32768` - Excelente para tarefas complexas
+- `gemma-7b-it` - Alternativa leve
+
+**Rate Limit Padrão:**
+- RPM: 30 requisições por minuto
+- RPD: 14.400 requisições por dia
+
+---
+
 ### Alternar entre Providers e Configurar Rate Limits
 
-Você pode alternar entre Ollama e Gemini e configurar limites personalizados:
+Você pode alternar entre Ollama, Gemini e Groq e configurar limites personalizados:
 1. No aplicativo (Auto Docs), clique em "Configurar IA"
 2. Selecione o provider desejado
 3. Configure RPM (requisições por minuto) e RPD (requisições por dia):

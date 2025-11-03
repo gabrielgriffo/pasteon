@@ -3,6 +3,7 @@
 export const AI_PROVIDERS = {
   OLLAMA: 'ollama',
   GEMINI: 'gemini',
+  GROQ: 'groq',
 } as const;
 
 export type AIProvider = typeof AI_PROVIDERS[keyof typeof AI_PROVIDERS];
@@ -29,6 +30,17 @@ export const config = {
     options: {
       temperature: 0.3,
       maxOutputTokens: 500, // Descrições curtas
+    },
+  },
+
+  // Configurações do Groq (Cloud - Ultra Fast)
+  groq: {
+    apiKey: import.meta.env.VITE_GROQ_API_KEY || '',
+    model: import.meta.env.VITE_GROQ_MODEL || 'llama3-8b-8192',
+    baseUrl: 'https://api.groq.com/openai/v1/chat/completions',
+    options: {
+      temperature: 0.3,
+      max_tokens: 500, // Descrições curtas
     },
   },
 };
