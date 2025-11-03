@@ -6,8 +6,9 @@ import {
   deleteEndpoint,
   type Endpoint,
   type HttpMethod,
-} from '../services/endpointsService';
-import { saveToken, loadToken, clearToken } from '../utils/tokenStorage';
+} from '@/services/endpointsService';
+import { saveToken, loadToken, clearToken } from '@/utils/tokenStorage';
+import { toast } from '@/utils/toast';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2 } from 'lucide-react';
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -39,8 +40,6 @@ interface ConfigModalProps {
 export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalProps) {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Token state
   const [token, setToken] = useState('');
@@ -62,11 +61,10 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
   const loadEndpoints = async () => {
     try {
       setIsLoading(true);
-      setError(null);
       const data = await getEndpoints();
       setEndpoints(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar endpoints');
+      toast.error('Erro ao carregar endpoints', err instanceof Error ? err.message : undefined);
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +74,7 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
     e.preventDefault();
 
     if (!formUrl.trim()) {
-      setError('URL é obrigatória');
+      toast.error('URL é obrigatória');
       return;
     }
 
@@ -86,20 +84,19 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
     );
 
     if (isDuplicate) {
-      setError(`Já existe um endpoint [${formMethod}] para esta URL`);
+      toast.error('Endpoint duplicado', `Já existe um endpoint [${formMethod}] para esta URL`);
       return;
     }
 
     try {
       setIsLoading(true);
-      setError(null);
 
       if (editingId) {
         await updateEndpoint(editingId, formMethod, formUrl);
-        setSuccessMessage('Endpoint atualizado com sucesso!');
+        toast.success('Endpoint atualizado com sucesso!');
       } else {
         await createEndpoint(formMethod, formUrl);
-        setSuccessMessage('Endpoint criado com sucesso!');
+        toast.success('Endpoint criado com sucesso!');
       }
 
       // Reset form
@@ -110,11 +107,8 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
       // Reload endpoints
       await loadEndpoints();
       onEndpointsChange();
-
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar endpoint');
+      toast.error('Erro ao salvar endpoint', err instanceof Error ? err.message : undefined);
     } finally {
       setIsLoading(false);
     }
@@ -124,15 +118,12 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
     setEditingId(endpoint.id);
     setFormMethod(endpoint.metodo as HttpMethod);
     setFormUrl(endpoint.url);
-    setError(null);
-    setSuccessMessage(null);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormMethod('GET');
     setFormUrl('');
-    setError(null);
   };
 
   const handleDelete = async (id: number) => {
@@ -142,14 +133,12 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
 
     try {
       setIsLoading(true);
-      setError(null);
       await deleteEndpoint(id);
-      setSuccessMessage('Endpoint deletado com sucesso!');
+      toast.success('Endpoint deletado com sucesso!');
       await loadEndpoints();
       onEndpointsChange();
-      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao deletar endpoint');
+      toast.error('Erro ao deletar endpoint', err instanceof Error ? err.message : undefined);
     } finally {
       setIsLoading(false);
     }
@@ -158,19 +147,21 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
   const handleTokenChange = (newToken: string) => {
     setToken(newToken);
     saveToken(newToken);
+    if (newToken.trim()) {
+      toast.success('Token configurado');
+    }
   };
 
   const handleClearToken = () => {
     setToken('');
     clearToken();
+    toast.info('Token removido');
   };
 
   const handleClose = () => {
     setEditingId(null);
     setFormMethod('GET');
     setFormUrl('');
-    setError(null);
-    setSuccessMessage(null);
     onClose();
   };
 
@@ -187,25 +178,13 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">Configurações de Endpoints</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Messages */}
-          {error && (
-            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-          {successMessage && (
-            <div className="rounded-lg border border-green-500 bg-green-50 p-4 text-sm text-green-700 flex items-center gap-2">
-              <Check className="h-4 w-4" />
-              {successMessage}
-            </div>
-          )}
-
+        <div className="flex-1 overflow-y-auto px-1">
+          <div className="space-y-6">
           {/* Card 1: Bearer Token */}
           <Card>
             <CardHeader>
@@ -360,6 +339,7 @@ export function ConfigModal({ isOpen, onClose, onEndpointsChange }: ConfigModalP
               )}
             </CardContent>
           </Card>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

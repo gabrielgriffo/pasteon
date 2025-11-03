@@ -80,3 +80,101 @@ export async function getAllFields(): Promise<ResponseField[]> {
 
   return data || [];
 }
+
+/**
+ * Atualiza a descrição de um campo específico
+ */
+export async function updateFieldDescription(
+  id: number,
+  descricao: string
+): Promise<ResponseField> {
+  const { data, error } = await supabase
+    .from('response_fields')
+    .update({ descricao })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Erro ao atualizar descrição: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
+ * Busca campos que não possuem descrição
+ */
+export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
+  const { data, error } = await supabase
+    .from('response_fields')
+    .select('*')
+    .or('descricao.is.null,descricao.eq.')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Erro ao buscar campos sem descrição: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Busca campos que possuem descrição preenchida
+ */
+export async function getFieldsWithDescription(): Promise<ResponseField[]> {
+  const { data, error } = await supabase
+    .from('response_fields')
+    .select('*')
+    .not('descricao', 'is', null)
+    .neq('descricao', '')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Erro ao buscar campos com descrição: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Busca estatísticas dos campos
+ */
+export interface FieldStatistics {
+  total: number;
+  withDescription: number;
+  withoutDescription: number;
+  percentageWithDescription: number;
+}
+
+export async function getFieldStatistics(): Promise<FieldStatistics> {
+  const { count: total, error: totalError } = await supabase
+    .from('response_fields')
+    .select('*', { count: 'exact', head: true });
+
+  if (totalError) {
+    throw new Error(`Erro ao buscar total de campos: ${totalError.message}`);
+  }
+
+  const { count: withDescription, error: withDescError } = await supabase
+    .from('response_fields')
+    .select('*', { count: 'exact', head: true })
+    .not('descricao', 'is', null)
+    .neq('descricao', '');
+
+  if (withDescError) {
+    throw new Error(`Erro ao buscar campos com descrição: ${withDescError.message}`);
+  }
+
+  const totalCount = total || 0;
+  const withDescCount = withDescription || 0;
+  const withoutDescCount = totalCount - withDescCount;
+  const percentage = totalCount > 0 ? (withDescCount / totalCount) * 100 : 0;
+
+  return {
+    total: totalCount,
+    withDescription: withDescCount,
+    withoutDescription: withoutDescCount,
+    percentageWithDescription: Math.round(percentage * 10) / 10, // 1 casa decimal
+  };
+}

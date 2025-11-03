@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { extractFieldDetails, formatDetalhes, extractQueryParams, extractBodyFields } from '../utils/jsonParser';
+import { extractFieldDetails, formatDetalhes, extractQueryParams, extractBodyFields } from '@/utils/jsonParser';
 import { ResponseTable } from './ResponseTable';
-import { loadToken } from '../utils/tokenStorage';
+import { loadToken } from '@/utils/tokenStorage';
 import { ConfigModal } from './ConfigModal';
-import { getEndpoints, type Endpoint } from '../services/endpointsService';
-import { saveResponseFields, type FieldToSave } from '../services/responseFieldsService';
+import { getEndpoints, type Endpoint } from '@/services/endpointsService';
+import { saveResponseFields, type FieldToSave } from '@/services/responseFieldsService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';

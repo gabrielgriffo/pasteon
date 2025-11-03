@@ -1,4 +1,4 @@
-# API Testing & Documentation Tool
+# Pasteon - API Testing & Documentation Tool
 
 Uma ferramenta completa para testar APIs e documentar automaticamente os campos de requisições e respostas. Salva automaticamente todos os campos extraídos em um banco de dados Supabase, permitindo construir uma documentação viva da sua API.
 
@@ -46,6 +46,16 @@ Todos os campos são salvos no banco de dados com detalhes sobre tipo, valor de 
 - **Extração inteligente** - Suporta objetos aninhados com notação de pontos (ex: `user.address.city`)
 - **Tipos identificados** - Cada campo é marcado como Body, Query Params ou Response
 - **Histórico completo** - Campos de descrição preparados para documentação futura
+
+### 🤖 Geração Automática de Descrições com IA
+- **Dual AI Integration** - Suporte para Ollama (local) e Google Gemini (cloud)
+- **Dashboard de Estatísticas** - Visualize campos documentados vs pendentes em tempo real
+- **Processamento em Lote** - Gera descrições automáticas para todos os campos sem descrição
+- **Progresso ao Vivo** - Acompanhe o processamento com estimativas de tempo
+- **Rate Limit Inteligente** - RPM e RPD configuráveis por provider, salvos no banco
+- **Exportação Completa** - Copie toda a documentação em formato de tabela
+- **Configuração Persistente** - Settings sincronizados via Supabase entre dispositivos
+- **Toasts Informativos** - Notificações em tempo real de todas as operações
 
 ## 🛠️ Tecnologias
 
@@ -191,14 +201,40 @@ npm install
 ```bash
 # Copie o arquivo de exemplo
 cp .env.example .env
+```
 
-# Edite o arquivo .env com suas credenciais do Supabase
-# VITE_SUPABASE_URL=sua-url-aqui
-# VITE_SUPABASE_ANON_KEY=sua-chave-aqui
+Edite o arquivo `.env` com suas credenciais:
+
+```env
+# ============================================
+# SUPABASE CONFIGURATION
+# ============================================
+VITE_SUPABASE_URL=sua-url-aqui
+VITE_SUPABASE_ANON_KEY=sua-chave-aqui
+
+# ============================================
+# AI PROVIDER CONFIGURATION
+# ============================================
+# Choose: 'ollama' (local) or 'gemini' (cloud)
+VITE_AI_PROVIDER=gemini
+
+# ============================================
+# OLLAMA (LOCAL)
+# ============================================
+VITE_OLLAMA_URL=http://localhost:11434
+VITE_OLLAMA_MODEL=llama3.2
+
+# ============================================
+# GOOGLE GEMINI (CLOUD)
+# ============================================
+# Get your API key at: https://aistudio.google.com/
+VITE_GEMINI_API_KEY=sua_chave_aqui
+VITE_GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
 > 💡 **Onde encontrar as credenciais?**
-> Acesse [Supabase Dashboard](https://supabase.com/dashboard) → Seu Projeto → Settings → API
+> - **Supabase**: [Dashboard](https://supabase.com/dashboard) → Seu Projeto → Settings → API
+> - **Gemini API Key**: [Google AI Studio](https://aistudio.google.com/) (gratuito)
 
 3. Inicie o servidor de desenvolvimento:
 ```bash
@@ -206,6 +242,88 @@ npm run dev
 ```
 
 Acesse: `http://localhost:5173`
+
+---
+
+## 🤖 Configuração da IA para Auto-Documentação
+
+O sistema suporta dois providers de IA para gerar descrições automáticas dos campos:
+
+### Opção 1: Google Gemini (Recomendado para Início Rápido) ⚡
+
+**Vantagens:**
+- ✅ Não requer instalação local
+- ✅ Tier gratuito generoso (60 requisições/min)
+- ✅ Funciona de qualquer lugar
+- ✅ Sempre atualizado
+
+**Como Configurar:**
+
+1. Obtenha sua API Key gratuita em: https://aistudio.google.com/
+2. No arquivo `.env`, configure:
+```env
+VITE_AI_PROVIDER=gemini
+VITE_GEMINI_API_KEY=sua_chave_aqui
+VITE_GEMINI_MODEL=gemini-2.0-flash-exp
+```
+3. Reinicie o servidor de desenvolvimento
+4. Acesse "Auto Docs" → "Configurar IA" para testar a conexão
+
+**Rate Limit Configurável:**
+- **RPM (Requests Per Minute)**: Limite por minuto - aguarda reset automático
+- **RPD (Requests Per Day)**: Limite diário - cancela processamento se atingido
+- Gemini Free Tier padrão: RPM=10, RPD=50
+- Configurações salvas no Supabase e sincronizadas entre dispositivos
+
+---
+
+### Opção 2: Ollama (Local - Máxima Privacidade) 🔒
+
+**Vantagens:**
+- ✅ 100% privado (dados nunca saem da sua máquina)
+- ✅ Sem custos de API
+- ✅ Sem rate limits
+- ✅ Funciona offline
+
+**Como Configurar:**
+
+1. Instale o Ollama: https://ollama.com
+2. Baixe um modelo (recomendado `llama3.2`):
+```bash
+ollama pull llama3.2
+```
+3. Inicie o servidor Ollama:
+```bash
+ollama serve
+```
+4. No arquivo `.env`, configure:
+```env
+VITE_AI_PROVIDER=ollama
+VITE_OLLAMA_URL=http://localhost:11434
+VITE_OLLAMA_MODEL=llama3.2
+```
+5. Reinicie o servidor de desenvolvimento
+6. Acesse "Auto Docs" → "Configurar IA" para testar a conexão
+
+**Modelos Recomendados:**
+- `llama3.2` - Rápido e eficiente (recomendado)
+- `llama3.1` - Mais poderoso, requer mais recursos
+- `mistral` - Alternativa leve
+
+---
+
+### Alternar entre Providers e Configurar Rate Limits
+
+Você pode alternar entre Ollama e Gemini e configurar limites personalizados:
+1. No aplicativo (Auto Docs), clique em "Configurar IA"
+2. Selecione o provider desejado
+3. Configure RPM (requisições por minuto) e RPD (requisições por dia):
+   - **RPM**: Sistema aguarda até próximo minuto ao atingir limite
+   - **RPD**: Cancela processamento ao atingir limite diário (reset à meia-noite)
+4. Clique em "Testar Conexão" para verificar disponibilidade
+5. Salve as configurações (sincronizadas automaticamente no banco)
+
+---
 
 ### Build para Produção
 ```bash
