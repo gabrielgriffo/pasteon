@@ -23,17 +23,17 @@ export function StatsCard({ title, value, description, icon: Icon, variant = 'de
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className={`p-2 rounded-lg ${colorClasses[variant]}`}>
-          <Icon className="h-4 w-4" />
+    <Card className="py-2 gap-0">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-3 pb-1 pt-2 gap-0">
+        <CardTitle className="text-xs font-medium">{title}</CardTitle>
+        <div className={`p-1 rounded-md ${colorClasses[variant]}`}>
+          <Icon className="h-3 w-3" />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="px-3 pb-2">
+        <div className="text-lg font-bold">{value}</div>
         {description && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{description}</p>
         )}
       </CardContent>
     </Card>

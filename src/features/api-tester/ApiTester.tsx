@@ -22,7 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Settings, Plus, Trash2, ChevronDown, ChevronUp, Loader2, Send, AlertCircle } from 'lucide-react';
+import { Settings, Plus, Trash2, ChevronDown, ChevronUp, Loader2, Send, AlertCircle, Wrench } from 'lucide-react';
 
 interface BodyField {
   campo: string;
@@ -301,46 +301,55 @@ export function ApiTester() {
     <div className="w-full">
       <div className="max-w-8xl mx-auto px-4 py-8">
         <Card className="mb-8">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-lg">Configuração da Request</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setIsConfigModalOpen(true)}
-                variant="secondary"
-                size="default"
-                className="cursor-pointer"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                onClick={handleAddEndpoint}
-                disabled={isLoading}
-                size="default"
-                className="cursor-pointer"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar
-              </Button>
-              <Button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={isLoading}
-                size="default"
-                className="cursor-pointer"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Executando...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Enviar
-                  </>
-                )}
-              </Button>
+          <CardHeader>
+            <div className='flex items-center'>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Wrench className="h-6 w-6 text-primary" />
+                </div>
+
+                <CardTitle className="text-lg">Configuração da Request</CardTitle>
+              </div>
+              
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  onClick={() => setIsConfigModalOpen(true)}
+                  variant="secondary"
+                  size="default"
+                  className="cursor-pointer"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleAddEndpoint}
+                  disabled={isLoading}
+                  size="default"
+                  className="cursor-pointer"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Adicionar
+                </Button>
+                <Button
+                  type="submit"
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  size="default"
+                  className="cursor-pointer"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Executando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Enviar
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardHeader>
 

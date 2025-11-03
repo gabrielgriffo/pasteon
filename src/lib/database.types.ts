@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_provider_settings: {
+        Row: {
+          created_at: string
+          current_rpd: number
+          current_rpm: number
+          id: string
+          is_active: boolean
+          last_reset_day: string
+          last_reset_minute: number
+          provider: string
+          rpd_enabled: boolean
+          rpd_limit: number
+          rpm_enabled: boolean
+          rpm_limit: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_rpd?: number
+          current_rpm?: number
+          id?: string
+          is_active?: boolean
+          last_reset_day?: string
+          last_reset_minute?: number
+          provider: string
+          rpd_enabled?: boolean
+          rpd_limit?: number
+          rpm_enabled?: boolean
+          rpm_limit?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_rpd?: number
+          current_rpm?: number
+          id?: string
+          is_active?: boolean
+          last_reset_day?: string
+          last_reset_minute?: number
+          provider?: string
+          rpd_enabled?: boolean
+          rpd_limit?: number
+          rpm_enabled?: boolean
+          rpm_limit?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       endpoints: {
         Row: {
           created_at: string | null

@@ -1,11 +1,12 @@
 // src/services/aiSettingsService.ts
 
 import { supabase } from '@/lib/supabase';
-import type { AIProvider } from '@/services/ai/AIService';
+import type { AIProvider } from '@/services/ai/config';
 
 export interface AIProviderSettings {
   id: string;
   provider: AIProvider;
+  is_active: boolean;
   rpm_enabled: boolean;
   rpm_limit: number;
   current_rpm: number;
@@ -61,6 +62,16 @@ const DEFAULT_SETTINGS: Record<AIProvider, RateLimitConfig> = {
     currentRpd: 0,
     lastResetDay: getCurrentDay(),
   },
+  openrouter: {
+    rpmEnabled: true,
+    rpmLimit: 20,
+    currentRpm: 0,
+    lastResetMinute: Date.now(),
+    rpdEnabled: true,
+    rpdLimit: 200,
+    currentRpd: 0,
+    lastResetDay: getCurrentDay(),
+  },
 };
 
 /**
@@ -105,12 +116,15 @@ export async function loadProviderSettings(provider: AIProvider): Promise<RateLi
       .from('ai_provider_settings')
       .select('*')
       .eq('provider', provider)
-      .single();
+      .maybeSingle(); // Usa maybeSingle() ao invés de single() para não dar erro se não existir
 
     if (error) throw error;
-    if (!data) return DEFAULT_SETTINGS[provider];
+    if (!data) {
+      // Primeira vez usando este provider, retorna defaults silenciosamente
+      return DEFAULT_SETTINGS[provider];
+    }
 
-    return toRateLimitConfig(data);
+    return toRateLimitConfig(data as AIProviderSettings);
   } catch (error) {
     console.warn(`Erro ao carregar settings de ${provider}, usando defaults:`, error);
     return DEFAULT_SETTINGS[provider];
@@ -127,18 +141,24 @@ export async function saveProviderSettings(
   try {
     const { error } = await supabase
       .from('ai_provider_settings')
-      .upsert({
-        provider,
-        rpm_enabled: config.rpmEnabled,
-        rpm_limit: config.rpmLimit,
-        current_rpm: config.currentRpm,
-        last_reset_minute: config.lastResetMinute,
-        rpd_enabled: config.rpdEnabled,
-        rpd_limit: config.rpdLimit,
-        current_rpd: config.currentRpd,
-        last_reset_day: config.lastResetDay,
-        updated_at: new Date().toISOString(),
-      });
+      .upsert(
+        {
+          provider,
+          rpm_enabled: config.rpmEnabled,
+          rpm_limit: config.rpmLimit,
+          current_rpm: config.currentRpm,
+          last_reset_minute: config.lastResetMinute,
+          rpd_enabled: config.rpdEnabled,
+          rpd_limit: config.rpdLimit,
+          current_rpd: config.currentRpd,
+          last_reset_day: config.lastResetDay,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'provider', // Especifica a coluna de conflito
+          ignoreDuplicates: false, // Atualiza se existir
+        }
+      );
 
     if (error) throw error;
   } catch (error) {
@@ -268,4 +288,71 @@ export async function resetCounters(provider: AIProvider): Promise<void> {
  */
 export function getDefaultSettings(provider: AIProvider): RateLimitConfig {
   return DEFAULT_SETTINGS[provider];
+}
+
+/**
+ * Retorna o provider atualmente ativo do banco de dados
+ */
+export async function getActiveProvider(): Promise<AIProvider> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_provider_settings')
+      .select('provider')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (data) {
+      return data.provider as AIProvider;
+    }
+
+    // Fallback para .env se não encontrar no banco
+    return (import.meta.env.VITE_AI_PROVIDER || 'gemini') as AIProvider;
+  } catch (error) {
+    console.warn('Erro ao carregar provider ativo do banco, usando .env:', error);
+    return (import.meta.env.VITE_AI_PROVIDER || 'gemini') as AIProvider;
+  }
+}
+
+/**
+ * Define um provider como ativo (desativa os outros automaticamente)
+ */
+export async function setActiveProvider(provider: AIProvider): Promise<void> {
+  try {
+    // 1. Desativa todos os providers
+    await supabase
+      .from('ai_provider_settings')
+      .update({ is_active: false })
+      .neq('provider', '__none__'); // Atualiza todos (workaround para "update all")
+
+    // 2. Ativa o provider selecionado (cria se não existir)
+    const defaults = DEFAULT_SETTINGS[provider];
+    const { error } = await supabase
+      .from('ai_provider_settings')
+      .upsert(
+        {
+          provider,
+          is_active: true,
+          rpm_enabled: defaults.rpmEnabled,
+          rpm_limit: defaults.rpmLimit,
+          current_rpm: defaults.currentRpm,
+          last_reset_minute: defaults.lastResetMinute,
+          rpd_enabled: defaults.rpdEnabled,
+          rpd_limit: defaults.rpdLimit,
+          current_rpd: defaults.currentRpd,
+          last_reset_day: defaults.lastResetDay,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'provider',
+          ignoreDuplicates: false,
+        }
+      );
+
+    if (error) throw error;
+  } catch (error) {
+    console.error(`Erro ao definir provider ativo (${provider}):`, error);
+    throw error;
+  }
 }

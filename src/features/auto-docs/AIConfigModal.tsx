@@ -7,14 +7,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle2, Loader2, Bot, Cloud, Clock, Zap, Calendar } from 'lucide-react';
-import { AI_PROVIDERS, type AIProvider } from '@/services/ai/AIService';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { CheckCircle2, Loader2, Bot, Cloud, Clock, Zap, Calendar, ChevronDown } from 'lucide-react';
+import { AI_PROVIDERS } from '@/services/ai/AIService';
+import type { AIProvider } from '@/services/ai/config';
 import type { ProviderStatus } from '@/services/ai/AIService';
 import type { RateLimitConfig } from '@/services/aiSettingsService';
 import { getDefaultSettings } from '@/services/aiSettingsService';
@@ -41,6 +48,7 @@ export function AIConfigModal({
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(currentProvider);
   const [isTesting, setIsTesting] = useState(false);
   const [testResults, setTestResults] = useState<Record<AIProvider, ProviderStatus> | null>(null);
+  const [isProviderSelectorOpen, setIsProviderSelectorOpen] = useState(false);
 
   // Estados para configuração de rate limit
   const [rpmEnabled, setRpmEnabled] = useState(false);
@@ -81,6 +89,17 @@ export function AIConfigModal({
     }
   };
 
+  // Helper para obter informações do provider (ícone e nome)
+  const getProviderInfo = (provider: AIProvider) => {
+    const providerMap = {
+      [AI_PROVIDERS.OLLAMA]: { icon: Bot, name: 'Ollama (Local)' },
+      [AI_PROVIDERS.GEMINI]: { icon: Cloud, name: 'Google Gemini (Cloud)' },
+      [AI_PROVIDERS.GROQ]: { icon: Zap, name: 'Groq (Cloud - Ultra Rápido)' },
+      [AI_PROVIDERS.OPENROUTER]: { icon: Cloud, name: 'OpenRouter (Cloud - Multi-Model)' },
+    };
+    return providerMap[provider];
+  };
+
   const handleSave = async () => {
     // Salva provider se alterado
     if (selectedProvider !== currentProvider) {
@@ -116,10 +135,35 @@ export function AIConfigModal({
 
         <div className="flex-1 overflow-y-auto px-1">
           <div className="space-y-6 py-4">
-          {/* Seleção de Provider */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Selecione o Provider</Label>
+          {/* Seleção de Provider - Collapsible */}
+          <Collapsible open={isProviderSelectorOpen} onOpenChange={setIsProviderSelectorOpen}>
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Selecione o Provider</Label>
 
+              {/* Trigger - Mostra provider selecionado */}
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between p-4 border-2 border-primary rounded-lg cursor-pointer hover:bg-accent transition-colors bg-primary/5">
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const ProviderIcon = getProviderInfo(selectedProvider).icon;
+                      return <ProviderIcon className="h-5 w-5" />;
+                    })()}
+                    <div className="text-left">
+                      <p className="font-semibold">{getProviderInfo(selectedProvider).name}</p>
+                      <p className="text-sm text-muted-foreground">Clique para trocar</p>
+                    </div>
+                  </div>
+                  <ChevronDown
+                    className={`h-5 w-5 transition-transform duration-200 ${
+                      isProviderSelectorOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
+              </CollapsibleTrigger>
+
+              {/* Content - Lista de todos os providers */}
+              <CollapsibleContent>
+                <div className="space-y-3 mt-3">
             {/* Ollama (Local) */}
             <div
               className={`rounded-lg border-2 p-4 cursor-pointer transition-colors ${
@@ -239,7 +283,50 @@ export function AIConfigModal({
                 </div>
               </div>
             </div>
-          </div>
+
+            {/* OpenRouter (Cloud - Multi-Model) */}
+            <div
+              className={`rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+                selectedProvider === AI_PROVIDERS.OPENROUTER
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted hover:border-primary/50'
+              }`}
+              onClick={() => setSelectedProvider(AI_PROVIDERS.OPENROUTER)}
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    checked={selectedProvider === AI_PROVIDERS.OPENROUTER}
+                    onChange={() => setSelectedProvider(AI_PROVIDERS.OPENROUTER)}
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-5 w-5" />
+                    <span className="font-semibold">OpenRouter (Cloud - Multi-Model)</span>
+                    {testResults?.openrouter && (
+                      <Badge variant={testResults.openrouter.available ? 'default' : 'destructive'}>
+                        {testResults.openrouter.available ? 'Disponível' : 'Indisponível'}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Acesso unificado a múltiplos modelos (OpenAI, Anthropic, Meta, Google). Requer chave de API.
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1 mt-2">
+                    <p>• Modelo: {import.meta.env.VITE_OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free'}</p>
+                    <p>• API Key: {import.meta.env.VITE_OPENROUTER_API_KEY ? '✓ Configurada' : '✗ Não configurada'}</p>
+                    <p>• Vantagens: Acesso a 100+ modelos, API unificada, tier gratuito disponível</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
 
           <Separator />
 
@@ -344,12 +431,16 @@ export function AIConfigModal({
                 </p>
                 <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
                   <p><strong>Gemini Free Tier:</strong> RPM=10, RPD=50</p>
+                  <p><strong>Groq Free Tier:</strong> RPM=30, RPD=14400</p>
+                  <p><strong>OpenRouter Free Tier:</strong> RPM=20, RPD=200</p>
                   <p><strong>Ollama Local:</strong> Sem limites (desabilite ambos)</p>
                 </div>
               </div>
             </div>
           </div>
-
+          </div>
+        </div>
+        <DialogFooter>
           {/* Botões de Ação */}
           <div className="flex items-center gap-3">
             <Button
@@ -374,9 +465,9 @@ export function AIConfigModal({
               Salvar Configurações
             </Button>
           </div>
-          </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
+
     </Dialog>
   );
 }

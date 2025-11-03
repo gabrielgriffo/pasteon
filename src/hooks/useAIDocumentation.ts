@@ -1,7 +1,8 @@
 // src/hooks/useAIDocumentation.ts
 
 import { useState, useCallback, useEffect } from 'react';
-import { aiService, type AIProvider } from '@/services/ai/AIService';
+import { aiService } from '@/services/ai/AIService';
+import type { AIProvider } from '@/services/ai/config';
 import {
   getFieldsWithoutDescription,
   getFieldsWithDescription,
@@ -43,11 +44,18 @@ export function useAIDocumentation() {
   const [logs, setLogs] = useState<ProcessLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [rateLimitConfig, setRateLimitConfig] = useState<RateLimitConfig | null>(null);
+  const [activeProvider, setActiveProvider] = useState<AIProvider>('gemini'); // Estado reativo para o provider
 
-  // Carrega configurações do banco ao montar
+  // Carrega provider ativo e configurações do banco ao montar
   useEffect(() => {
     const loadSettings = async () => {
-      const config = await loadProviderSettings(aiService.getActiveProviderType());
+      // Aguarda o AI Service carregar o provider do banco
+      await aiService.waitForInitialization();
+
+      // Carrega configurações do provider ativo
+      const provider = aiService.getActiveProviderType();
+      setActiveProvider(provider); // Atualiza estado
+      const config = await loadProviderSettings(provider);
       setRateLimitConfig(config);
     };
     loadSettings();
@@ -128,7 +136,7 @@ export function useAIDocumentation() {
       addLog(`Usando provider: ${providerName}`, 'info');
 
       // Mostra configurações de rate limit
-      const remaining = getRemainingRequests(currentProvider);
+      const remaining = await getRemainingRequests(currentProvider);
       if (remaining.rpm.remaining !== Infinity) {
         addLog(`📊 Limite RPM: ${remaining.rpm.current}/${remaining.rpm.limit}`, 'info');
       }
@@ -152,7 +160,7 @@ export function useAIDocumentation() {
         updateProgress(i, fields.length, currentFieldName, avgTime);
 
         // VERIFICA RATE LIMIT ANTES DE PROCESSAR
-        const rateLimitCheck = canMakeRequest(currentProvider);
+        const rateLimitCheck = await canMakeRequest(currentProvider);
 
         // Se atingiu RPD, cancela tudo
         if (rateLimitCheck.reason === 'rpd_limit') {
@@ -187,7 +195,7 @@ export function useAIDocumentation() {
           }
 
           // Incrementa contador de requisições APÓS sucesso
-          incrementRequestCount(currentProvider);
+          await incrementRequestCount(currentProvider);
 
           // Salva no banco de dados
           await updateFieldDescription(field.id, result.description);
@@ -196,7 +204,7 @@ export function useAIDocumentation() {
           processingTimes.push(elapsed);
 
           // Mostra requisições restantes
-          const remainingAfter = getRemainingRequests(currentProvider);
+          const remainingAfter = await getRemainingRequests(currentProvider);
           let remainingInfo = '';
           if (remainingAfter.rpm.remaining !== Infinity || remainingAfter.rpd.remaining !== Infinity) {
             const parts = [];
@@ -279,6 +287,7 @@ export function useAIDocumentation() {
    */
   const changeProvider = useCallback(async (provider: AIProvider) => {
     aiService.setProvider(provider);
+    setActiveProvider(provider); // Atualiza estado para disparar re-render
     const newRateLimits = await loadProviderSettings(provider);
     setRateLimitConfig(newRateLimits);
     addLog(`Provider alterado para: ${aiService.getActiveProviderName()}`, 'info');
@@ -288,8 +297,8 @@ export function useAIDocumentation() {
    * Retorna o provider ativo
    */
   const getActiveProvider = useCallback(() => {
-    return aiService.getActiveProviderType();
-  }, []);
+    return activeProvider;
+  }, [activeProvider]);
 
   /**
    * Retorna o nome do provider ativo

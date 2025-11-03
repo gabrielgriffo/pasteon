@@ -47,6 +47,17 @@ export function AutoDocs() {
     }
   }, [isProcessing, progress.current]);
 
+  // Helper para obter nome amigável do provider
+  const getProviderDisplayName = (provider: string): string => {
+    const providerMap: Record<string, string> = {
+      'ollama': 'Ollama',
+      'gemini': 'Gemini',
+      'groq': 'Groq',
+      'openrouter': 'OpenRouter',
+    };
+    return providerMap[provider] || provider;
+  };
+
   const loadStatistics = async () => {
     try {
       setIsLoadingStats(true);
@@ -62,8 +73,8 @@ export function AutoDocs() {
   return (
     <div className="w-full">
       <div className="max-w-8xl mx-auto px-4 py-8">
-        {/* Header */}
-        <Card className="mb-6">
+        {/* Ações Principais */}
+        <Card className='mb-6'>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -71,31 +82,18 @@ export function AutoDocs() {
                   <FileText className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">Documentação Automática</CardTitle>
-                  <CardDescription className="text-base mt-1">
-                    Geração automática de descrições de campos usando IA
-                  </CardDescription>
+                  <CardTitle className="text-lg">Documentação Automática</CardTitle>
                 </div>
               </div>
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
+                size="default"
                 onClick={() => setIsConfigModalOpen(true)}
               >
                 <Settings className="h-4 w-4 mr-2" />
                 Configurar IA
               </Button>
             </div>
-          </CardHeader>
-        </Card>
-
-        {/* Ações Principais */}
-        <Card className='mb-6'>
-          <CardHeader>
-            <CardTitle className="text-lg">Ações</CardTitle>
-            <CardDescription>
-              Adicione descrições automaticamente ou exporte a documentação completa
-            </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -163,22 +161,11 @@ export function AutoDocs() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Informações Adicionais */}
-            {statistics.total === 0 && (
-              <div className="rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 text-center">
-                <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <h3 className="text-lg font-semibold mb-2">Nenhum campo cadastrado</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  Vá para o Request Builder e faça requisições para popular o banco de dados com campos para documentar.
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
         {/* Dashboard de Estatísticas */}
-        <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <div className="grid gap-2 md:grid-cols-4 mb-3">
           <StatsCard
             title="Total de Campos"
             value={isLoadingStats ? '...' : statistics.total}
@@ -202,7 +189,7 @@ export function AutoDocs() {
           />
           <StatsCard
             title="Provider Ativo"
-            value={getActiveProvider() === 'gemini' ? 'Gemini' : 'Ollama'}
+            value={getProviderDisplayName(getActiveProvider())}
             description={getActiveProviderName()}
             icon={Settings}
             variant="default"
@@ -210,7 +197,7 @@ export function AutoDocs() {
         </div>
 
         {/* Painel de Progresso (só aparece durante processamento ou se houver logs) */}
-        {(isProcessing || logs.length > 0) && (
+        {(isProcessing && logs.length > 0) && (
           <div className="mb-6">
             <ProgressPanel
               progress={progress}
