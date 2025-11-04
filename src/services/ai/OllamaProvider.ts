@@ -1,6 +1,7 @@
 // src/services/ai/OllamaProvider.ts
 
 import { config } from './config';
+import { loadComplementaryText } from '@/utils/promptStorage';
 
 export class OllamaProvider {
   private baseUrl: string;
@@ -69,6 +70,9 @@ export class OllamaProvider {
    * Constrói o prompt otimizado para geração de descrições de campos
    */
   private buildPrompt(campo: string, detalhes: string, tipo: string): string {
+    const complementaryText = loadComplementaryText();
+    const complementarySection = complementaryText ? `\n\nINSTRUÇÕES ADICIONAIS: ${complementaryText}` : '';
+
     return `Você é um especialista técnico em documentação de APIs REST.
 
 Analise o seguinte campo de uma resposta de API e gere uma descrição técnica clara e concisa (1-2 frases).
@@ -82,7 +86,7 @@ A descrição deve:
 - Mencionar tipo de dado e formato se relevante
 - Ser objetiva e técnica
 - Não usar markdown, apenas texto plano
-- Ter no máximo 2 frases
+- Ter no máximo 2 frases${complementarySection}
 
 Retorne APENAS a descrição, sem introduções ou explicações adicionais.`;
   }

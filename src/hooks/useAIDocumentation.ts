@@ -255,21 +255,23 @@ export function useAIDocumentation() {
         return;
       }
 
-      // Formata em tabela texto plano
-      const header = 'MÉTODO | URL | ENDPOINT | DETALHES | DESCRIÇÃO';
-      const separator = '-------|-----|----------|----------|------------';
+      // Formata em TSV (Tab-Separated Values) para colar no Excel
+      const header = 'TÍTULO\tMÉTODO\tURL\tENDPOINT\tCAMPO\tDETALHES\tDESCRIÇÃO';
 
       const rows = fields.map((field) => {
-        const metodo = field.metodo.padEnd(7);
-        const url = field.url.slice(0, 20).padEnd(20);
-        const endpoint = field.endpoint.slice(0, 25).padEnd(25);
-        const detalhes = field.detalhes.slice(0, 40).padEnd(40);
+        const titulo = field.title || '';
+        const metodo = field.metodo;
+        const url = field.url;
+        const endpoint = field.endpoint;
+        const campo = field.campo;
+        const detalhes = field.detalhes;
         const descricao = field.descricao || '';
 
-        return `${metodo} | ${url} | ${endpoint} | ${detalhes} | ${descricao}`;
+        // Separar colunas por TAB (\t) para Excel reconhecer automaticamente
+        return `${titulo}\t${metodo}\t${url}\t${endpoint}\t${campo}\t${detalhes}\t${descricao}`;
       });
 
-      const table = [header, separator, ...rows].join('\n');
+      const table = [header, ...rows].join('\n');
 
       // Copia para clipboard
       await navigator.clipboard.writeText(table);

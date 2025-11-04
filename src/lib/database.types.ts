@@ -83,6 +83,69 @@ export type Database = {
         }
         Relationships: []
       }
+      group_requests: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          endpoint_id: number
+          group_id: number
+          id: number
+          order_index: number
+          title: string | null
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          endpoint_id: number
+          group_id: number
+          id?: number
+          order_index?: number
+          title?: string | null
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          endpoint_id?: number
+          group_id?: number
+          id?: number
+          order_index?: number
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_requests_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "request_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      request_groups: {
+        Row: {
+          created_at: string | null
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
       response_fields: {
         Row: {
           campo: string
@@ -93,6 +156,7 @@ export type Database = {
           id: number
           metodo: string
           tipo: string
+          title: string | null
           url: string
         }
         Insert: {
@@ -104,6 +168,7 @@ export type Database = {
           id?: number
           metodo: string
           tipo?: string
+          title?: string | null
           url: string
         }
         Update: {
@@ -115,6 +180,7 @@ export type Database = {
           id?: number
           metodo?: string
           tipo?: string
+          title?: string | null
           url?: string
         }
         Relationships: []

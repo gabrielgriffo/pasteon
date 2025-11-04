@@ -13,6 +13,7 @@ export interface FieldToSave {
   campo: string;
   detalhes: string;
   tipo: FieldTipo;
+  title?: string;
 }
 
 /**
@@ -30,17 +31,20 @@ export async function saveResponseFields(fields: FieldToSave[]): Promise<void> {
     campo: field.campo,
     detalhes: field.detalhes,
     tipo: field.tipo,
+    title: field.title || null,
     descricao: '', // Empty for now, will be used in the future
   }));
 
   const { error } = await supabase
     .from('response_fields')
-    .insert(dataToInsert)
+    .upsert(dataToInsert, {
+      onConflict: 'metodo,url,endpoint,campo,detalhes',
+      ignoreDuplicates: false,
+    })
     .select();
 
   if (error) {
-    // Log error but don't throw - duplicates are expected and handled by database constraint
-    console.warn('Some fields may not have been saved (possibly duplicates):', error.message);
+    throw new Error(`Erro ao salvar campos: ${error.message}`);
   }
 }
 

@@ -155,7 +155,7 @@ export function AutoDocs() {
                   </Button>
                   {statistics.withDescription > 0 && (
                     <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Formato: Método | URL | Endpoint | Detalhes | Descrição
+                      Formato: Título | Método | URL | Endpoint | Campo | Detalhes | Descrição
                     </p>
                   )}
                 </CardContent>

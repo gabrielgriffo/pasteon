@@ -19,12 +19,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { CheckCircle2, Loader2, Bot, Cloud, Clock, Zap, Calendar, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Loader2, Bot, Cloud, Clock, Zap, Calendar, ChevronDown, FileText } from 'lucide-react';
 import { AI_PROVIDERS } from '@/services/ai/AIService';
 import type { AIProvider } from '@/services/ai/config';
 import type { ProviderStatus } from '@/services/ai/AIService';
 import type { RateLimitConfig } from '@/services/aiSettingsService';
 import { getDefaultSettings } from '@/services/aiSettingsService';
+import { loadComplementaryText, saveComplementaryText } from '@/utils/promptStorage';
 
 interface AIConfigModalProps {
   isOpen: boolean;
@@ -56,11 +57,14 @@ export function AIConfigModal({
   const [rpdEnabled, setRpdEnabled] = useState(false);
   const [rpdLimit, setRpdLimit] = useState(1500);
 
+  // Estado para texto complementar do prompt
+  const [complementaryText, setComplementaryText] = useState('');
+
   useEffect(() => {
     setSelectedProvider(currentProvider);
   }, [currentProvider]);
 
-  // Carrega configuração de rate limit ao abrir modal ou ao trocar provider
+  // Carrega configuração de rate limit e texto complementar ao abrir modal ou ao trocar provider
   useEffect(() => {
     if (isOpen && currentRateLimitConfig) {
       // Carrega configuração do provider atual
@@ -72,6 +76,9 @@ export function AIConfigModal({
       setRpmLimit(config.rpmLimit ?? defaults.rpmLimit);
       setRpdEnabled(config.rpdEnabled ?? defaults.rpdEnabled);
       setRpdLimit(config.rpdLimit ?? defaults.rpdLimit);
+
+      // Carrega texto complementar do localStorage
+      setComplementaryText(loadComplementaryText());
     }
   }, [isOpen, selectedProvider, currentRateLimitConfig]);
 
@@ -330,6 +337,38 @@ export function AIConfigModal({
 
           <Separator />
 
+          {/* Texto Complementar do Prompt */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <Label className="text-base font-semibold">Texto Complementar do Prompt</Label>
+            </div>
+            <div className="space-y-2">
+              <Input
+                type="text"
+                placeholder="Insira um texto"
+                value={complementaryText}
+                onChange={(e) => {
+                  const newText = e.target.value.slice(0, 80);
+                  setComplementaryText(newText);
+                  saveComplementaryText(newText.trim());
+                }}
+                maxLength={80}
+                className="w-full"
+              />
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">
+                  Texto adicional que será incluído no prompt para todos os provedores de IA
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {complementaryText.length}/80
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Configuração de Rate Limit */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -433,6 +472,26 @@ export function AIConfigModal({
                   <p><strong>Gemini Free Tier:</strong> RPM=10, RPD=50</p>
                   <p><strong>Groq Free Tier:</strong> RPM=30, RPD=14400</p>
                   <p><strong>OpenRouter Free Tier:</strong> RPM=20, RPD=200</p>
+                  
+                  {/* > Atualizando o layout da tela de request buider, mova a lista de endpoits para um   
+  novo card, deixe os botões no primeiro card, este primeiro card vai apenas perder  
+  a lista de requests, ai vou adicionar outras coisas neste primeiro card.
+  Vamos fazer agora um sistema de grupos, na parte de request builder, adicione no   
+  primeiro card essas novas opções: um select para eu selecionar o grupo, um botão   
+  para eu salvar o grupo, um botão para eu adicionar um novo grupo.\
+  O select de grupo vai ter os grupos, se não tiver nenhum grupo salvo no banco ele
+  fica desabilitado, ao selecionar um grupo vai trocar todas as requsts da lista
+  de resquest para a request daquele grupo, mas se  grupo for novo, ou seja, não
+  tiver nenhuma request salva nele, ele não vai apagar as requests que estiverem na
+  lista atualmente. O botao de salvar o grupo vai salvar o grupo de requests junto
+  com os seus respectibos bodies no banco, ao clicar nele, vai salvar no grupo
+  selecionado no select, se não tiver nenhum grupo selecionado ele vai criar um
+  novo, abrindo o modal do mesmo jeito do botão de adicionar. O botão de adicionar
+  um novo grupo, vai abrir um modal para eu digitar o nome do grupo novo, quando eu
+  confirmar o nome ele vai salvar no banco este grupo em branco e vai alterar para
+  este grupo no select, como este grupo vai ser novo e vai estar vazio, não vai
+  apagar as requests da lista. Os grupos são formados pela request e seus bodies,
+  se tiverem, isso vai servir para eu poder fazer uma lista de request */}
                   <p><strong>Ollama Local:</strong> Sem limites (desabilite ambos)</p>
                 </div>
               </div>

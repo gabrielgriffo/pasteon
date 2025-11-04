@@ -3,11 +3,25 @@ import { extractFieldDetails, formatDetalhes, extractQueryParams, extractBodyFie
 import { ResponseTable } from './ResponseTable';
 import { loadToken } from '@/utils/tokenStorage';
 import { ConfigModal } from './ConfigModal';
+import { GroupManagementModal } from './GroupManagementModal';
+import { ConfirmLoadGroupModal } from './ConfirmLoadGroupModal';
+import { ConfirmDeleteGroupModal } from './ConfirmDeleteGroupModal';
 import { getEndpoints, type Endpoint } from '@/services/endpointsService';
 import { saveResponseFields, type FieldToSave } from '@/services/responseFieldsService';
+import {
+  getGroups,
+  createGroup,
+  deleteGroup,
+  getGroupRequests,
+  saveGroupRequests,
+  type RequestGroup,
+  type RequestToSave,
+} from '@/services/requestGroupsService';
+import { toast } from '@/utils/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -22,7 +36,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Settings, Plus, Trash2, ChevronDown, ChevronUp, Loader2, Send, AlertCircle, Wrench } from 'lucide-react';
+import { Settings, Plus, Trash2, ChevronDown, ChevronUp, Loader2, Send, AlertCircle, Wrench, Save, FolderPlus, List } from 'lucide-react';
 
 interface BodyField {
   campo: string;
@@ -44,6 +58,7 @@ interface SelectedEndpoint {
   method: HttpMethod;
   url: string;
   body: string;
+  title: string;
   error: string | null;
   isOpen: boolean;
 }
@@ -63,6 +78,7 @@ export function ApiTester() {
       method: 'GET',
       url: '',
       body: '',
+      title: '',
       error: null,
       isOpen: true,
     },
@@ -70,8 +86,17 @@ export function ApiTester() {
   const [currentRequestIndex, setCurrentRequestIndex] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
 
+  // Group management states
+  const [groups, setGroups] = useState<RequestGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isConfirmLoadOpen, setIsConfirmLoadOpen] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [pendingGroupId, setPendingGroupId] = useState<number | null>(null);
+
   useEffect(() => {
     loadEndpoints();
+    loadGroups();
   }, []);
 
   const loadEndpoints = async () => {
@@ -80,6 +105,137 @@ export function ApiTester() {
       setEndpoints(data);
     } catch (err) {
       console.error('Erro ao carregar endpoints:', err);
+    }
+  };
+
+  const loadGroups = async () => {
+    try {
+      const data = await getGroups();
+      setGroups(data);
+    } catch (err) {
+      console.error('Erro ao carregar grupos:', err);
+    }
+  };
+
+  // Group management handlers
+  const handleGroupChange = (groupId: string) => {
+    const numericGroupId = parseInt(groupId) || null;
+
+    // Se não tem requests ou se a lista está vazia, carrega diretamente
+    if (selectedEndpoints.length === 0 || selectedEndpoints.every(ep => !ep.endpointId)) {
+      loadGroupDirectly(numericGroupId);
+      return;
+    }
+
+    // Se tem requests na lista, mostra modal de confirmação
+    setPendingGroupId(numericGroupId);
+    setIsConfirmLoadOpen(true);
+  };
+
+  const loadGroupDirectly = async (groupId: number | null) => {
+    if (!groupId) {
+      setSelectedGroupId(null);
+      return;
+    }
+
+    try {
+      const groupRequests = await getGroupRequests(groupId);
+
+      // Se grupo está vazio, apenas seleciona e não apaga a lista
+      if (groupRequests.length === 0) {
+        setSelectedGroupId(groupId);
+        toast.info('Grupo selecionado', 'Este grupo está vazio');
+        return;
+      }
+
+      // Converte as requests do grupo para o formato da UI
+      const newSelectedEndpoints: SelectedEndpoint[] = groupRequests.map((req, index) => ({
+        id: Date.now() + index,
+        endpointId: req.endpoint_id,
+        method: req.endpoint.metodo as HttpMethod,
+        url: req.endpoint.url,
+        body: req.body || '',
+        title: req.title || '',
+        error: null,
+        isOpen: index === 0, // Apenas o primeiro aberto
+      }));
+
+      setSelectedEndpoints(newSelectedEndpoints);
+      setSelectedGroupId(groupId);
+      toast.success('Grupo carregado com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao carregar grupo', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const confirmLoadGroup = () => {
+    if (pendingGroupId) {
+      loadGroupDirectly(pendingGroupId);
+    }
+    setPendingGroupId(null);
+  };
+
+  const handleSaveGroup = async () => {
+    // Se tem grupo selecionado, sobrescreve
+    if (selectedGroupId) {
+      await saveCurrentGroup(selectedGroupId);
+      return;
+    }
+
+    // Se não tem grupo selecionado, abre modal para criar novo
+    setIsGroupModalOpen(true);
+  };
+
+  const saveCurrentGroup = async (groupId: number) => {
+    try {
+      // Filtra apenas endpoints válidos (que têm endpointId)
+      const validEndpoints = selectedEndpoints.filter(ep => ep.endpointId !== null);
+
+      if (validEndpoints.length === 0) {
+        toast.error('Nenhuma request válida para salvar');
+        return;
+      }
+
+      const requestsToSave: RequestToSave[] = validEndpoints.map((ep, index) => ({
+        endpointId: ep.endpointId!,
+        body: ep.body,
+        title: ep.title,
+        orderIndex: index,
+      }));
+
+      await saveGroupRequests(groupId, requestsToSave);
+      toast.success('Grupo salvo com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao salvar grupo', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleNewGroup = async (name: string) => {
+    try {
+      const newGroup = await createGroup(name);
+      await loadGroups();
+      setSelectedGroupId(newGroup.id);
+      toast.success('Grupo criado com sucesso!');
+    } catch (err) {
+      throw err; // Re-throw para o modal tratar
+    }
+  };
+
+  const handleDeleteGroup = () => {
+    if (!selectedGroupId) return;
+    setIsConfirmDeleteOpen(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!selectedGroupId) return;
+
+    try {
+      await deleteGroup(selectedGroupId);
+      await loadGroups();
+      setSelectedGroupId(null);
+      toast.success('Grupo deletado com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao deletar grupo', err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -111,6 +267,7 @@ export function ApiTester() {
         method: 'GET',
         url: '',
         body: '',
+        title: '',
         error: null,
         isOpen: true,
       },
@@ -143,6 +300,12 @@ export function ApiTester() {
   const handleBodyChange = (id: number, body: string) => {
     setSelectedEndpoints(
       selectedEndpoints.map((ep) => (ep.id === id ? { ...ep, body, error: null } : ep))
+    );
+  };
+
+  const handleTitleChange = (id: number, title: string) => {
+    setSelectedEndpoints(
+      selectedEndpoints.map((ep) => (ep.id === id ? { ...ep, title } : ep))
     );
   };
 
@@ -246,6 +409,7 @@ export function ApiTester() {
             campo: detail.path,
             detalhes: formatDetalhes(detail),
             tipo: bodyTipo,
+            title: endpoint.title || undefined,
           });
         });
 
@@ -257,11 +421,13 @@ export function ApiTester() {
             campo: detail.path,
             detalhes: formatDetalhes(detail),
             tipo: 'Response',
+            title: endpoint.title || undefined,
           });
         });
 
         if (fieldsToSave.length > 0) {
           await saveResponseFields(fieldsToSave);
+          console.log(`✓ Salvos ${fieldsToSave.length} campos da request: ${endpoint.title || endpoint.url}`);
         }
 
         successfulResponses.push({
@@ -284,6 +450,18 @@ export function ApiTester() {
     setIsLoading(false);
     setCurrentRequestIndex(0);
     setTotalRequests(0);
+
+    // Feedback final
+    if (successfulResponses.length === selectedEndpoints.length) {
+      toast.success('Todas as requests foram executadas e salvas com sucesso!');
+    } else if (successfulResponses.length > 0) {
+      toast.info(
+        `${successfulResponses.length} de ${selectedEndpoints.length} requests executadas com sucesso`,
+        'Verifique os erros nos cards destacados em vermelho'
+      );
+    } else {
+      toast.error('Nenhuma request foi executada com sucesso', 'Verifique os erros nos cards');
+    }
   };
 
   const getMethodBadgeClass = (method: string) => {
@@ -297,9 +475,12 @@ export function ApiTester() {
     }
   };
 
+  const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : null;
+
   return (
     <div className="w-full">
       <div className="max-w-8xl mx-auto px-4 py-8">
+        {/* Card 1: Gerenciar Grupos e Requests */}
         <Card className="mb-8">
           <CardHeader>
             <div className='flex items-center'>
@@ -308,9 +489,75 @@ export function ApiTester() {
                   <Wrench className="h-6 w-6 text-primary" />
                 </div>
 
-                <CardTitle className="text-lg">Configuração da Request</CardTitle>
+                <CardTitle className="text-lg">Gerenciar Grupos</CardTitle>
               </div>
-              
+
+              <div className="flex items-center gap-2 ml-auto">
+                {/* Select de grupo */}
+                <Label htmlFor="group-select">Grupo</Label>
+
+                  <Select
+                    value={selectedGroupId?.toString() || ''}
+                    onValueChange={handleGroupChange}
+                    disabled={groups.length === 0 || isLoading}
+                  >
+                    <SelectTrigger id="group-select">
+                      <SelectValue placeholder={groups.length === 0 ? 'Nenhum grupo cadastrado' : 'Selecione um grupo'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                {/* </div> */}
+                <Button
+                  type="button"
+                  onClick={handleSaveGroup}
+                  disabled={isLoading}
+                  variant="default"
+                  className="cursor-pointer flex-1"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Salvar Requests
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setIsGroupModalOpen(true)}
+                  disabled={isLoading}
+                  variant="outline"
+                  className="cursor-pointer flex-1"
+                >
+                  <FolderPlus className="mr-2 h-4 w-4" />
+                  Novo Grupo
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDeleteGroup}
+                  disabled={!selectedGroupId || isLoading}
+                  variant="destructive"
+                  className="cursor-pointer flex-1"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Deletar
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Card 2: Lista de Requests */}
+        <Card className="mb-8">
+          <CardHeader>
+            <div className='flex items-center justify-between'>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <List className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Lista de Requests</CardTitle>
+              </div>
               <div className="flex items-center gap-2 ml-auto">
                 <Button
                   onClick={() => setIsConfigModalOpen(true)}
@@ -354,35 +601,30 @@ export function ApiTester() {
           </CardHeader>
 
           <CardContent>
+            {selectedEndpoints.length >= 2 && (
+              <Button
+                type="button"
+                onClick={toggleAllCards}
+                disabled={isLoading}
+                variant="outline"
+                size="sm"
+                className="cursor-pointer mb-4"
+              >
+                {selectedEndpoints.every((ep) => ep.isOpen) ? (
+                  <>
+                    <ChevronUp className="mr-2 h-4 w-4" />
+                    Colapsar Todos
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                    Expandir Todos
+                  </>
+                )}
+              </Button>
+            )}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {selectedEndpoints.length >= 2 && (
-                      <Button
-                        type="button"
-                        onClick={toggleAllCards}
-                        disabled={isLoading}
-                        variant="outline"
-                        size="sm"
-                        className="cursor-pointer"
-                      >
-                        {selectedEndpoints.every((ep) => ep.isOpen) ? (
-                          <>
-                            <ChevronUp className="mr-2 h-4 w-4" />
-                            Colapsar Todos
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="mr-2 h-4 w-4" />
-                            Expandir Todos
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
                 {endpoints.length === 0 && (
                   <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
                     Nenhum endpoint cadastrado. Clique em "Configurações" para adicionar.
@@ -393,9 +635,11 @@ export function ApiTester() {
                   const selectedEndpointData = selectedEndpoint.endpointId
                     ? endpoints.find((e) => e.id === selectedEndpoint.endpointId)
                     : null;
-                  const cardTitle = selectedEndpointData
-                    ? `[${selectedEndpointData.metodo}] ${selectedEndpointData.url}`
-                    : 'Selecione um endpoint';
+                  const cardTitle = selectedEndpoint.title
+                    ? selectedEndpoint.title
+                    : selectedEndpointData
+                      ? `[${selectedEndpointData.metodo}] ${selectedEndpointData.url}`
+                      : 'Selecione um endpoint';
 
                   return (
                     <Collapsible
@@ -433,7 +677,7 @@ export function ApiTester() {
                                 }`}
                                 title={cardTitle}
                               >
-                                {selectedEndpointData ? selectedEndpointData.url : cardTitle}
+                                {cardTitle}
                               </span>
 
                               {selectedEndpoint.isOpen ? (
@@ -463,27 +707,45 @@ export function ApiTester() {
 
                         <CollapsibleContent>
                           <div className="px-4 pb-4 space-y-3 border-t">
-                            <div className="pt-3">
-                              <Select
-                                value={selectedEndpoint.endpointId?.toString() || ''}
-                                onValueChange={(value) => handleEndpointChange(selectedEndpoint.id, value)}
-                                disabled={isLoading}
-                              >
-                                <SelectTrigger id={`endpoint-${selectedEndpoint.id}`}>
-                                  <SelectValue placeholder="Selecione um endpoint" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {endpoints.map((endpoint) => {
-                                    const inUse = isEndpointInUse(endpoint.id, selectedEndpoint.id);
-                                    return (
-                                      <SelectItem key={endpoint.id} value={endpoint.id.toString()}>
-                                        [{endpoint.metodo}
-                                        {inUse ? '*' : ''}] {endpoint.url}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                            <div className="pt-3 space-y-3">
+                              <div>
+                                <Label htmlFor={`title-${selectedEndpoint.id}`}>
+                                  Título (Opcional)
+                                </Label>
+                                <Input
+                                  id={`title-${selectedEndpoint.id}`}
+                                  type="text"
+                                  placeholder="Ex: Criar usuário, Buscar produtos..."
+                                  value={selectedEndpoint.title}
+                                  onChange={(e) => handleTitleChange(selectedEndpoint.id, e.target.value)}
+                                  disabled={isLoading}
+                                  maxLength={100}
+                                  className="mt-2"
+                                />
+                              </div>
+
+                              <div>
+                                <Select
+                                  value={selectedEndpoint.endpointId?.toString() || ''}
+                                  onValueChange={(value) => handleEndpointChange(selectedEndpoint.id, value)}
+                                  disabled={isLoading}
+                                >
+                                  <SelectTrigger id={`endpoint-${selectedEndpoint.id}`}>
+                                    <SelectValue placeholder="Selecione um endpoint" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {endpoints.map((endpoint) => {
+                                      const inUse = isEndpointInUse(endpoint.id, selectedEndpoint.id);
+                                      return (
+                                        <SelectItem key={endpoint.id} value={endpoint.id.toString()}>
+                                          [{endpoint.metodo}
+                                          {inUse ? '*' : ''}] {endpoint.url}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
 
                             {(selectedEndpoint.method === 'POST' ||
@@ -529,6 +791,30 @@ export function ApiTester() {
         isOpen={isConfigModalOpen}
         onClose={() => setIsConfigModalOpen(false)}
         onEndpointsChange={loadEndpoints}
+      />
+
+      <GroupManagementModal
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
+        onConfirm={handleNewGroup}
+        onImportSuccess={loadGroups}
+      />
+
+      <ConfirmLoadGroupModal
+        isOpen={isConfirmLoadOpen}
+        onClose={() => {
+          setIsConfirmLoadOpen(false);
+          setPendingGroupId(null);
+        }}
+        onConfirm={confirmLoadGroup}
+        groupName={pendingGroupId ? (groups.find(g => g.id === pendingGroupId)?.name || '') : ''}
+      />
+
+      <ConfirmDeleteGroupModal
+        isOpen={isConfirmDeleteOpen}
+        onClose={() => setIsConfirmDeleteOpen(false)}
+        onConfirm={confirmDeleteGroup}
+        groupName={selectedGroupId ? (groups.find(g => g.id === selectedGroupId)?.name || '') : ''}
       />
     </div>
   );
