@@ -23,8 +23,13 @@ import {
   type ParsedCollection,
 } from '@/utils/postmanParser';
 
+export interface ParsedFile {
+  file: File;
+  data: ParsedCollection;
+}
+
 interface PostmanImportSectionProps {
-  onImport: (parsedData: ParsedCollection, file: File) => Promise<void>;
+  onImport: (parsedFiles: ParsedFile[]) => Promise<void>;
 }
 
 export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
@@ -32,8 +37,7 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [parsedData, setParsedData] = useState<ParsedCollection | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -50,73 +54,80 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
     e.preventDefault();
     setIsDragging(false);
 
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      processFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      processFiles(files);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) {
+      processFiles(files);
     }
   };
 
-  const processFile = async (file: File) => {
+  const processFiles = async (files: File[]) => {
     setError(null);
-    setParsedData(null);
-    setSelectedFile(null);
-
-    // Validar tipo de arquivo
-    if (!isValidFileType(file)) {
-      setError('Arquivo inválido. Por favor, selecione um arquivo .json');
-      return;
-    }
-
+    setParsedFiles([]);
     setIsProcessing(true);
 
-    try {
-      // Ler arquivo
-      const jsonData = await readFileAsJSON(file);
+    const successfullyParsed: ParsedFile[] = [];
+    const errors: string[] = [];
 
-      // Parsear collection
-      const parsed = parsePostmanCollection(jsonData);
+    for (const file of files) {
+      // Validar tipo de arquivo
+      if (!isValidFileType(file)) {
+        errors.push(`${file.name}: Arquivo inválido (deve ser .json)`);
+        continue;
+      }
 
-      setParsedData(parsed);
-      setSelectedFile(file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao processar arquivo');
-    } finally {
-      setIsProcessing(false);
+      try {
+        // Ler arquivo
+        const jsonData = await readFileAsJSON(file);
+
+        // Parsear collection
+        const parsed = parsePostmanCollection(jsonData);
+
+        successfullyParsed.push({ file, data: parsed });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+        errors.push(`${file.name}: ${errorMsg}`);
+      }
     }
+
+    setParsedFiles(successfullyParsed);
+
+    if (errors.length > 0) {
+      setError(errors.join('\n'));
+    }
+
+    setIsProcessing(false);
   };
 
   const handleImportClick = async () => {
-    if (!parsedData || !selectedFile) return;
+    if (parsedFiles.length === 0) return;
 
     setIsImporting(true);
     setError(null);
 
     try {
-      await onImport(parsedData, selectedFile);
+      await onImport(parsedFiles);
 
       // Reset após sucesso
-      setParsedData(null);
-      setSelectedFile(null);
+      setParsedFiles([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao importar collection');
+      setError(err instanceof Error ? err.message : 'Erro ao importar collections');
     } finally {
       setIsImporting(false);
     }
   };
 
   const handleReset = () => {
-    setParsedData(null);
-    setSelectedFile(null);
+    setParsedFiles([]);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -134,12 +145,13 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
         ref={fileInputRef}
         type="file"
         accept=".json"
+        multiple
         onChange={handleFileSelect}
         className="hidden"
       />
 
       {/* Dropzone Area */}
-      {!parsedData && (
+      {parsedFiles.length === 0 && (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -155,17 +167,17 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
             {isProcessing ? (
               <>
                 <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-                <p className="text-sm text-muted-foreground">Processando arquivo...</p>
+                <p className="text-sm text-muted-foreground">Processando arquivos...</p>
               </>
             ) : (
               <>
                 <Upload className="h-12 w-12 text-muted-foreground" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">
-                    Arraste um arquivo .json aqui ou clique para selecionar
+                    Arraste arquivo(s) .json aqui ou clique para selecionar
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Apenas arquivos Postman Collection v2.1.0
+                    Suporta múltiplos arquivos - Postman Collection v2.1.0
                   </p>
                 </div>
                 <Button
@@ -179,7 +191,7 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
                   className="cursor-pointer mt-2"
                 >
                   <FileUp className="mr-2 h-4 w-4" />
-                  Selecionar Arquivo
+                  Selecionar Arquivo(s)
                 </Button>
               </>
             )}
@@ -211,103 +223,91 @@ export function PostmanImportSection({ onImport }: PostmanImportSectionProps) {
         </Card>
       )}
 
-      {/* Preview Card */}
-      {parsedData && (
-        <Card className="border-primary/50">
-          <CardContent className="pt-6 space-y-4">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1">
-                <div className="bg-primary/10 p-2 rounded-md shrink-0">
-                  <FileJson className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <Label className="text-sm font-medium">Collection Detectada</Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Pronto para importar para um novo grupo
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleReset}
-                className="cursor-pointer shrink-0"
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
+      {/* Preview Cards */}
+      {parsedFiles.length > 0 && (
+        <div className="space-y-4">
+          {/* Header with Reset Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <Label className="text-sm font-medium">
+                {parsedFiles.length} Collection{parsedFiles.length > 1 ? 's' : ''} Detectada{parsedFiles.length > 1 ? 's' : ''}
+              </Label>
             </div>
-
-            <Separator />
-
-            {/* Collection Info */}
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Nome do Grupo</Label>
-                <p className="text-sm font-medium mt-1">{parsedData.collectionName}</p>
-              </div>
-
-              {parsedData.description && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">Descrição</Label>
-                  <p className="text-sm mt-1">{parsedData.description}</p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-4">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Total de Rotas</Label>
-                  <p className="text-sm font-medium mt-1">{parsedData.stats.total}</p>
-                </div>
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Métodos HTTP</Label>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {Object.entries(parsedData.stats.byMethod).map(([method, count]) => (
-                      <Badge key={method} variant="secondary" className="text-xs">
-                        {method} ({count})
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Info Alert */}
-            <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-md">
-              <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Os endpoints serão criados automaticamente se não existirem. O grupo será criado com
-                o nome da collection.
-              </p>
-            </div>
-
-            {/* Import Button */}
             <Button
               type="button"
-              onClick={handleImportClick}
-              disabled={isImporting}
-              className="w-full cursor-pointer"
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              className="cursor-pointer"
             >
-              {isImporting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importando Collection...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar Collection ({parsedData.stats.total} rotas)
-                </>
-              )}
+              <XCircle className="h-4 w-4 mr-2" />
+              Limpar Tudo
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+
+          {/* List of Collections */}
+          <div className="space-y-2">
+            {parsedFiles.map((parsedFile, index) => (
+              <Card key={index} className="border-primary/30">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-primary/10 p-2 rounded-md shrink-0">
+                      <FileJson className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <p className="text-sm font-medium">{parsedFile.data.collectionName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{parsedFile.file.name}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-xs text-muted-foreground">
+                          {parsedFile.data.stats.total} rotas
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(parsedFile.data.stats.byMethod).map(([method, count]) => (
+                            <Badge key={method} variant="secondary" className="text-xs">
+                              {method} ({count})
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Info Alert */}
+          <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-md">
+            <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              Cada collection será importada para um grupo separado. Os endpoints serão criados automaticamente se não existirem.
+            </p>
+          </div>
+
+          {/* Import Button */}
+          <Button
+            type="button"
+            onClick={handleImportClick}
+            disabled={isImporting}
+            className="w-full cursor-pointer"
+          >
+            {isImporting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Importando Collections...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Importar {parsedFiles.length} Collection{parsedFiles.length > 1 ? 's' : ''} (
+                {parsedFiles.reduce((acc, pf) => acc + pf.data.stats.total, 0)} rotas no total)
+              </>
+            )}
+          </Button>
+        </div>
       )}
     </div>
   );

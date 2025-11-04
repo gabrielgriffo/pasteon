@@ -14,9 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, FileText, Upload } from 'lucide-react';
-import { PostmanImportSection } from './PostmanImportSection';
+import { PostmanImportSection, type ParsedFile } from './PostmanImportSection';
 import { importPostmanCollection } from '@/services/requestGroupsService';
-import type { ParsedCollection } from '@/utils/postmanParser';
 import { toast } from '@/utils/toast';
 
 interface GroupManagementModalProps {
@@ -59,27 +58,60 @@ export function GroupManagementModal({
     }
   };
 
-  const handleImport = async (parsedData: ParsedCollection, file: File) => {
-    try {
-      const result = await importPostmanCollection(
-        parsedData.collectionName,
-        parsedData.requests
-      );
+  const handleImport = async (parsedFiles: ParsedFile[]) => {
+    let successCount = 0;
+    let failCount = 0;
+    const errors: string[] = [];
 
-      // Mostrar toast de sucesso com estatísticas
+    // Processar cada collection sequencialmente
+    for (const { file, data } of parsedFiles) {
+      try {
+        const result = await importPostmanCollection(
+          data.collectionName,
+          data.requests
+        );
+
+        // Toast de sucesso individual
+        toast.success(
+          `✓ ${data.collectionName} importada!`,
+          `${result.totalRequests} rotas. Endpoints novos: ${result.endpointsCreated}, Reutilizados: ${result.endpointsReused}`
+        );
+
+        successCount++;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+        toast.error(`✗ Erro ao importar ${file.name}`, errorMsg);
+        errors.push(`${file.name}: ${errorMsg}`);
+        failCount++;
+      }
+    }
+
+    // Toast de resumo
+    if (successCount > 0 && failCount === 0) {
       toast.success(
-        'Collection importada!',
-        `Grupo "${result.group.name}" criado com ${result.totalRequests} rotas. ` +
-          `Endpoints novos: ${result.endpointsCreated}, Reutilizados: ${result.endpointsReused}`
+        'Importação concluída!',
+        `${successCount} collection(s) importada(s) com sucesso`
       );
+    } else if (successCount > 0 && failCount > 0) {
+      toast.info(
+        'Importação parcial',
+        `${successCount} sucesso(s), ${failCount} falha(s)`
+      );
+    }
 
-      // Chamar callback de sucesso (para recarregar lista de grupos)
+    // Chamar callback de sucesso se houver pelo menos uma importação bem-sucedida
+    if (successCount > 0) {
       onImportSuccess?.();
+    }
 
-      // Fechar modal
+    // Fechar modal apenas se todas foram bem-sucedidas
+    if (failCount === 0) {
       handleClose();
-    } catch (err) {
-      throw err; // Deixar o PostmanImportSection lidar com o erro
+    }
+
+    // Se houver erros, lançar exceção para o PostmanImportSection mostrar
+    if (failCount > 0 && successCount === 0) {
+      throw new Error(errors.join('\n'));
     }
   };
 

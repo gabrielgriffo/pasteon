@@ -38,7 +38,7 @@ export async function saveResponseFields(fields: FieldToSave[]): Promise<void> {
   const { error } = await supabase
     .from('response_fields')
     .upsert(dataToInsert, {
-      onConflict: 'metodo,url,endpoint,campo,detalhes',
+      onConflict: 'title,metodo,url,endpoint,campo,detalhes',
       ignoreDuplicates: false,
     })
     .select();
@@ -71,12 +71,14 @@ export async function getFieldsByEndpoint(
 
 /**
  * Busca todos os campos salvos
+ * Limite aumentado para 2000 registros por consulta
  */
 export async function getAllFields(): Promise<ResponseField[]> {
   const { data, error } = await supabase
     .from('response_fields')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(2000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos: ${error.message}`);
@@ -108,13 +110,15 @@ export async function updateFieldDescription(
 
 /**
  * Busca campos que não possuem descrição
+ * Limite aumentado para 2000 registros por consulta
  */
 export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
   const { data, error } = await supabase
     .from('response_fields')
     .select('*')
     .or('descricao.is.null,descricao.eq.')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(2000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos sem descrição: ${error.message}`);
@@ -125,6 +129,7 @@ export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
 
 /**
  * Busca campos que possuem descrição preenchida
+ * Limite aumentado para 2000 registros por consulta
  */
 export async function getFieldsWithDescription(): Promise<ResponseField[]> {
   const { data, error } = await supabase
@@ -132,13 +137,59 @@ export async function getFieldsWithDescription(): Promise<ResponseField[]> {
     .select('*')
     .not('descricao', 'is', null)
     .neq('descricao', '')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(2000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos com descrição: ${error.message}`);
   }
 
   return data || [];
+}
+
+/**
+ * Conta quantos campos têm descrições inválidas (que não terminam com ponto final)
+ */
+export async function countInvalidDescriptions(): Promise<number> {
+  const { count, error } = await supabase
+    .from('response_fields')
+    .select('*', { count: 'exact', head: true })
+    .not('descricao', 'is', null)
+    .neq('descricao', '')
+    .not('descricao', 'like', '%.');
+
+  if (error) {
+    throw new Error(`Erro ao contar descrições inválidas: ${error.message}`);
+  }
+
+  return count || 0;
+}
+
+/**
+ * Remove descrições inválidas (que não terminam com ponto final)
+ * Seta descricao = '' para que possam ser reprocessadas
+ */
+export async function clearInvalidDescriptions(): Promise<number> {
+  // Primeiro conta quantos serão afetados
+  const count = await countInvalidDescriptions();
+
+  if (count === 0) {
+    return 0;
+  }
+
+  // Limpa as descrições inválidas
+  const { error } = await supabase
+    .from('response_fields')
+    .update({ descricao: '' })
+    .not('descricao', 'is', null)
+    .neq('descricao', '')
+    .not('descricao', 'like', '%.');
+
+  if (error) {
+    throw new Error(`Erro ao limpar descrições inválidas: ${error.message}`);
+  }
+
+  return count;
 }
 
 /**

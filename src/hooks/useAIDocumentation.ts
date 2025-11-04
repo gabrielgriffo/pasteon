@@ -7,6 +7,8 @@ import {
   getFieldsWithoutDescription,
   getFieldsWithDescription,
   updateFieldDescription,
+  countInvalidDescriptions,
+  clearInvalidDescriptions as clearInvalidDescriptionsService,
   type ResponseField,
 } from '@/services/responseFieldsService';
 import {
@@ -34,6 +36,7 @@ export interface ProcessLog {
 
 export function useAIDocumentation() {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [progress, setProgress] = useState<ProgressInfo>({
     current: 0,
     total: 0,
@@ -111,53 +114,85 @@ export function useAIDocumentation() {
   }, []);
 
   /**
+   * Cancela o processamento em andamento
+   */
+  const cancelProcessing = useCallback(() => {
+    setCancelRequested(true);
+    addLog('🛑 Cancelamento solicitado pelo usuário...', 'info');
+  }, [addLog]);
+
+  /**
    * Inicia o processamento automático de descrições para campos sem descrição
    */
-  const startAutoDescription = useCallback(async () => {
+  const startAutoDescription = useCallback(async (retryUntilSuccess = false) => {
     setIsProcessing(true);
+    setCancelRequested(false);
     setError(null);
     setLogs([]);
 
+    let iteration = 0;
+
     try {
-      // Busca campos sem descrição
-      addLog('Buscando campos sem descrição...', 'info');
-      const fields = await getFieldsWithoutDescription();
-
-      if (fields.length === 0) {
-        addLog('Nenhum campo sem descrição encontrado', 'info');
-        setIsProcessing(false);
-        return;
-      }
-
-      addLog(`Encontrados ${fields.length} campos para processar`, 'info');
-
       const currentProvider = aiService.getActiveProviderType();
       const providerName = aiService.getActiveProviderName();
-      addLog(`Usando provider: ${providerName}`, 'info');
 
-      // Mostra configurações de rate limit
-      const remaining = await getRemainingRequests(currentProvider);
-      if (remaining.rpm.remaining !== Infinity) {
-        addLog(`📊 Limite RPM: ${remaining.rpm.current}/${remaining.rpm.limit}`, 'info');
-      }
-      if (remaining.rpd.remaining !== Infinity) {
-        addLog(`📊 Limite RPD: ${remaining.rpd.current}/${remaining.rpd.limit}`, 'info');
-      }
+      // Loop externo: continua até não haver mais campos ou cancelamento
+      while (!cancelRequested) {
+        iteration++;
 
-      // Array para calcular tempo médio
-      const processingTimes: number[] = [];
+        // Busca campos sem descrição
+        if (iteration === 1) {
+          addLog('Buscando campos sem descrição...', 'info');
+        } else {
+          addLog(`🔄 Iteração ${iteration}: Buscando campos que falharam...`, 'info');
+        }
 
-      // Processa cada campo sequencialmente
-      for (let i = 0; i < fields.length; i++) {
-        const field = fields[i];
-        const currentFieldName = `${field.campo} (${field.tipo})`;
+        const fields = await getFieldsWithoutDescription();
 
-        // Calcula tempo médio baseado nos campos já processados
-        const avgTime = processingTimes.length > 0
-          ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
-          : 3000; // 3 segundos como estimativa inicial
+        if (fields.length === 0) {
+          addLog('✅ Nenhum campo sem descrição encontrado', 'success');
+          break;
+        }
 
-        updateProgress(i, fields.length, currentFieldName, avgTime);
+        if (iteration === 1) {
+          addLog(`📊 Encontrados ${fields.length} campos para processar`, 'info');
+          addLog(`Usando provider: ${providerName}`, 'info');
+        } else {
+          addLog(`🔄 ${fields.length} campos ainda precisam ser processados`, 'info');
+        }
+
+        // Mostra configurações de rate limit (apenas na primeira iteração)
+        if (iteration === 1) {
+          const remaining = await getRemainingRequests(currentProvider);
+          if (remaining.rpm.remaining !== Infinity) {
+            addLog(`📊 Limite RPM: ${remaining.rpm.current}/${remaining.rpm.limit}`, 'info');
+          }
+          if (remaining.rpd.remaining !== Infinity) {
+            addLog(`📊 Limite RPD: ${remaining.rpd.current}/${remaining.rpd.limit}`, 'info');
+          }
+        }
+
+        // Array para calcular tempo médio
+        const processingTimes: number[] = [];
+        let failedCount = 0;
+
+        // Processa cada campo sequencialmente
+        for (let i = 0; i < fields.length; i++) {
+          // Verifica se foi solicitado cancelamento
+          if (cancelRequested) {
+            addLog('🛑 Processamento cancelado pelo usuário', 'info');
+            break;
+          }
+
+          const field = fields[i];
+          const currentFieldName = `${field.campo} (${field.tipo})`;
+
+          // Calcula tempo médio baseado nos campos já processados
+          const avgTime = processingTimes.length > 0
+            ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
+            : 3000; // 3 segundos como estimativa inicial
+
+          updateProgress(i, fields.length, currentFieldName, avgTime);
 
         // VERIFICA RATE LIMIT ANTES DE PROCESSAR
         const rateLimitCheck = await canMakeRequest(currentProvider);
@@ -219,6 +254,7 @@ export function useAIDocumentation() {
 
           addLog(`✓ ${currentFieldName}: ${(elapsed / 1000).toFixed(1)}s${remainingInfo}`, 'success');
         } catch (err) {
+          failedCount++;
           const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
           addLog(`✗ ${currentFieldName}: ${errorMsg}`, 'error');
 
@@ -228,19 +264,50 @@ export function useAIDocumentation() {
             await new Promise((resolve) => setTimeout(resolve, 5000));
           }
         }
+      } // Fecha o loop for
+
+        // Verifica se foi cancelado
+        if (cancelRequested) {
+          break;
+        }
+
+        // Verifica se deve fazer retry
+        if (!retryUntilSuccess) {
+          // Modo normal: processa apenas uma vez
+          updateProgress(fields.length, fields.length, 'Concluído', 0);
+          addLog(`✅ Processamento concluído! ${fields.length - failedCount} campos processados com sucesso.`, 'success');
+          if (failedCount > 0) {
+            addLog(`⚠️ ${failedCount} campos falharam. Ative "Retry automático" para tentar novamente.`, 'info');
+          }
+          break;
+        }
+
+        // Modo retry: verifica se ainda há campos que falharam
+        if (failedCount === 0) {
+          // Todos processados com sucesso!
+          updateProgress(fields.length, fields.length, 'Concluído', 0);
+          addLog(`✅ Todos os campos foram processados com sucesso após ${iteration} iteração(ões)!`, 'success');
+          break;
+        }
+
+        // Ainda há falhas, aguarda 5 segundos antes de retry
+        addLog(`🔄 ${failedCount} campos falharam. Aguardando 5 segundos para retry...`, 'info');
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
 
-      // Finaliza
-      updateProgress(fields.length, fields.length, 'Concluído', 0);
-      addLog(`✅ Processamento concluído! ${fields.length} campos processados.`, 'success');
+      // Verifica se foi cancelado
+      if (cancelRequested) {
+        addLog('🛑 Processamento cancelado pelo usuário', 'info');
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMsg);
       addLog(`❌ Erro: ${errorMsg}`, 'error');
     } finally {
       setIsProcessing(false);
+      setCancelRequested(false);
     }
-  }, [addLog, updateProgress]);
+  }, [addLog, updateProgress, cancelRequested]);
 
   /**
    * Copia todos os campos com descrição para o clipboard em formato tabela
@@ -256,19 +323,20 @@ export function useAIDocumentation() {
       }
 
       // Formata em TSV (Tab-Separated Values) para colar no Excel
-      const header = 'TÍTULO\tMÉTODO\tURL\tENDPOINT\tCAMPO\tDETALHES\tDESCRIÇÃO';
+      const header = 'TÍTULO\tMÉTODO\tURL\tENDPOINT\tTIPO\tCAMPO\tDETALHES\tDESCRIÇÃO';
 
       const rows = fields.map((field) => {
         const titulo = field.title || '';
         const metodo = field.metodo;
         const url = field.url;
         const endpoint = field.endpoint;
+        const tipo = field.tipo; // Body, Query Params, ou Response
         const campo = field.campo;
         const detalhes = field.detalhes;
         const descricao = field.descricao || '';
 
         // Separar colunas por TAB (\t) para Excel reconhecer automaticamente
-        return `${titulo}\t${metodo}\t${url}\t${endpoint}\t${campo}\t${detalhes}\t${descricao}`;
+        return `${titulo}\t${metodo}\t${url}\t${endpoint}\t${tipo}\t${campo}\t${detalhes}\t${descricao}`;
       });
 
       const table = [header, ...rows].join('\n');
@@ -323,6 +391,40 @@ export function useAIDocumentation() {
     return await aiService.checkProviders();
   }, []);
 
+  /**
+   * Retorna quantidade de descrições inválidas (que não terminam com ponto final)
+   */
+  const getInvalidDescriptionsCount = useCallback(async () => {
+    try {
+      return await countInvalidDescriptions();
+    } catch (error) {
+      console.error('Erro ao contar descrições inválidas:', error);
+      return 0;
+    }
+  }, []);
+
+  /**
+   * Remove descrições inválidas (que não terminam com ponto final)
+   */
+  const clearInvalidDescriptions = useCallback(async () => {
+    try {
+      addLog('🗑️ Buscando descrições inválidas...', 'info');
+      const count = await clearInvalidDescriptionsService();
+
+      if (count === 0) {
+        addLog('✓ Nenhuma descrição inválida encontrada', 'info');
+      } else {
+        addLog(`✓ ${count} descrição(ões) inválida(s) removida(s)`, 'success');
+      }
+
+      return count;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao limpar descrições';
+      addLog(`✗ ${errorMsg}`, 'error');
+      throw error;
+    }
+  }, [addLog]);
+
   return {
     // Estados
     isProcessing,
@@ -333,7 +435,10 @@ export function useAIDocumentation() {
 
     // Métodos
     startAutoDescription,
+    cancelProcessing,
     copyAllWithDescription,
+    clearInvalidDescriptions,
+    getInvalidDescriptionsCount,
     changeProvider,
     getActiveProvider,
     getActiveProviderName,

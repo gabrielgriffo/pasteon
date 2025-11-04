@@ -3,15 +3,27 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Settings, Sparkles, Copy, BarChart3 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { FileText, Settings, Sparkles, Copy, BarChart3, X, Trash2 } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { ProgressPanel } from './ProgressPanel';
 import { AIConfigModal } from './AIConfigModal';
+import { ConfirmClearDescriptionsModal } from './ConfirmClearDescriptionsModal';
 import { useAIDocumentation } from '@/hooks/useAIDocumentation';
 import { getFieldStatistics, type FieldStatistics } from '@/services/responseFieldsService';
+import { toast } from '@/utils/toast';
 
 export function AutoDocs() {
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [invalidCount, setInvalidCount] = useState(0);
+  const [isClearingDescriptions, setIsClearingDescriptions] = useState(false);
+  const [retryUntilSuccess, setRetryUntilSuccess] = useState(() => {
+    // Carrega preferência do localStorage
+    const saved = localStorage.getItem('ai-retry-until-success');
+    return saved === 'true';
+  });
   const [statistics, setStatistics] = useState<FieldStatistics>({
     total: 0,
     withDescription: 0,
@@ -27,7 +39,10 @@ export function AutoDocs() {
     error,
     rateLimitConfig,
     startAutoDescription,
+    cancelProcessing,
     copyAllWithDescription,
+    clearInvalidDescriptions,
+    getInvalidDescriptionsCount,
     changeProvider,
     getActiveProvider,
     getActiveProviderName,
@@ -70,9 +85,53 @@ export function AutoDocs() {
     }
   };
 
+  // Handler para mudar preferência de retry
+  const handleRetryChange = (checked: boolean) => {
+    setRetryUntilSuccess(checked);
+    localStorage.setItem('ai-retry-until-success', checked.toString());
+  };
+
+  // Handler para iniciar processamento com opção de retry
+  const handleStartProcessing = () => {
+    startAutoDescription(retryUntilSuccess);
+  };
+
+  // Handler para abrir modal de limpeza
+  const handleOpenClearModal = async () => {
+    const count = await getInvalidDescriptionsCount();
+    setInvalidCount(count);
+    setIsClearModalOpen(true);
+  };
+
+  // Handler para confirmar limpeza
+  const handleConfirmClear = async () => {
+    try {
+      setIsClearingDescriptions(true);
+      const count = await clearInvalidDescriptions();
+
+      // Recarrega estatísticas
+      await loadStatistics();
+
+      // Toast de sucesso
+      if (count > 0) {
+        toast.success(
+          'Descrições removidas!',
+          `${count} descrição(ões) inválida(s) foram removidas com sucesso`
+        );
+      } else {
+        toast.info('Nenhuma descrição inválida encontrada');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao limpar descrições';
+      toast.error('Erro ao limpar descrições', errorMsg);
+    } finally {
+      setIsClearingDescriptions(false);
+    }
+  };
+
   return (
     <div className="w-full">
-      <div className="max-w-8xl mx-auto px-4 py-8">
+      <div className="max-w-8xl mx-auto px-4 py-8 max-w-[85vw]">
         {/* Ações Principais */}
         <Card className='mb-6'>
           <CardHeader>
@@ -110,18 +169,45 @@ export function AutoDocs() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Adiciona descrições automáticas nos campos que ainda não possuem usando {getActiveProviderName()}
                   </p>
+
+                  {/* Checkbox de retry automático */}
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Checkbox
+                      id="retry-until-success"
+                      checked={retryUntilSuccess}
+                      onCheckedChange={handleRetryChange}
+                      disabled={isProcessing}
+                    />
+                    <Label
+                      htmlFor="retry-until-success"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Retry automático até sucesso
+                    </Label>
+                  </div>
+
+                  {/* Botão de processar ou cancelar */}
                   <Button
-                    onClick={startAutoDescription}
-                    disabled={isProcessing || statistics.withoutDescription === 0}
+                    onClick={isProcessing ? cancelProcessing : handleStartProcessing}
+                    disabled={!isProcessing && statistics.withoutDescription === 0}
                     className="w-full"
+                    variant={isProcessing ? 'destructive' : 'default'}
                   >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {isProcessing
-                      ? 'Processando...'
-                      : statistics.withoutDescription === 0
-                      ? 'Nenhum campo pendente'
-                      : `Adicionar Descrições (${statistics.withoutDescription})`}
+                    {isProcessing ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancelar
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {statistics.withoutDescription === 0
+                          ? 'Nenhum campo pendente'
+                          : `Adicionar Descrições (${statistics.withoutDescription})`}
+                      </>
+                    )}
                   </Button>
+
                   {statistics.withoutDescription === 0 && statistics.total > 0 && (
                     <p className="text-xs text-green-600 dark:text-green-400 mt-2 text-center">
                       ✓ Todos os campos já possuem descrição
@@ -146,16 +232,28 @@ export function AutoDocs() {
                     onClick={copyAllWithDescription}
                     disabled={statistics.withDescription === 0}
                     variant="outline"
-                    className="w-full"
+                    className="w-full mb-3"
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     {statistics.withDescription === 0
                       ? 'Nenhum campo documentado'
                       : `Copiar Tudo (${statistics.withDescription})`}
                   </Button>
+
+                  {/* Botão Limpar Descrições Inválidas */}
+                  <Button
+                    onClick={handleOpenClearModal}
+                    disabled={statistics.withDescription === 0}
+                    variant="outline"
+                    className="w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Limpar Inválidas
+                  </Button>
+
                   {statistics.withDescription > 0 && (
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Formato: Título | Método | URL | Endpoint | Campo | Detalhes | Descrição
+                    <p className="text-xs text-muted-foreground mt-3 text-center">
+                      Formato: Título | Método | URL | Endpoint | Tipo | Campo | Detalhes | Descrição
                     </p>
                   )}
                 </CardContent>
@@ -232,6 +330,15 @@ export function AutoDocs() {
           onCheckProviders={checkProviders}
           currentRateLimitConfig={rateLimitConfig}
           onUpdateRateLimitConfig={updateRateLimitConfig}
+        />
+
+        {/* Modal de Confirmação de Limpeza */}
+        <ConfirmClearDescriptionsModal
+          isOpen={isClearModalOpen}
+          onClose={() => setIsClearModalOpen(false)}
+          onConfirm={handleConfirmClear}
+          invalidCount={invalidCount}
+          isLoading={isClearingDescriptions}
         />
       </div>
     </div>

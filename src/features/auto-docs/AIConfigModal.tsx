@@ -403,7 +403,7 @@ export function AIConfigModal({
                             id="rpm-limit"
                             type="number"
                             min={1}
-                            max={1000}
+                            max={2000}
                             step={1}
                             value={rpmLimit}
                             onChange={(e) => setRpmLimit(parseInt(e.target.value) || 60)}

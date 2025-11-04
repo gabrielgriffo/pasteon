@@ -111,7 +111,9 @@ export function ApiTester() {
   const loadGroups = async () => {
     try {
       const data = await getGroups();
-      setGroups(data);
+      // Ordenar grupos por ID (crescente)
+      const sortedGroups = data.sort((a, b) => a.id - b.id);
+      setGroups(sortedGroups);
     } catch (err) {
       console.error('Erro ao carregar grupos:', err);
     }
@@ -479,7 +481,7 @@ export function ApiTester() {
 
   return (
     <div className="w-full">
-      <div className="max-w-8xl mx-auto px-4 py-8">
+      <div className="max-w-8xl mx-auto px-4 py-8 max-w-[85vw]">
         {/* Card 1: Gerenciar Grupos e Requests */}
         <Card className="mb-8">
           <CardHeader>
@@ -504,10 +506,10 @@ export function ApiTester() {
                     <SelectTrigger id="group-select">
                       <SelectValue placeholder={groups.length === 0 ? 'Nenhum grupo cadastrado' : 'Selecione um grupo'} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[300px]">
                       {groups.map((group) => (
                         <SelectItem key={group.id} value={group.id.toString()}>
-                          {group.name}
+                          {group.id} - {group.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

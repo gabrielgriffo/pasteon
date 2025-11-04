@@ -54,6 +54,33 @@ export interface ParsedCollection {
 }
 
 /**
+ * Extrai requests recursivamente de items que podem conter folders
+ * Suporta estruturas aninhadas: item.item[].item[]...
+ */
+function extractRequestsRecursively(items: any[]): any[] {
+  const requests: any[] = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    // Se o item tem uma request diretamente, adiciona à lista
+    if (item.request && item.request.method && item.request.url) {
+      requests.push(item);
+    }
+
+    // Se o item tem sub-items (é um folder), processa recursivamente
+    if (Array.isArray(item.item) && item.item.length > 0) {
+      const nestedRequests = extractRequestsRecursively(item.item);
+      requests.push(...nestedRequests);
+    }
+  }
+
+  return requests;
+}
+
+/**
  * Valida se o arquivo é uma Postman Collection válida
  */
 export function validatePostmanFile(data: any): { valid: boolean; error?: string } {
@@ -77,19 +104,10 @@ export function validatePostmanFile(data: any): { valid: boolean; error?: string
     return { valid: false, error: 'Collection vazia (nenhuma request encontrada)' };
   }
 
-  // Verificar se pelo menos uma request tem a estrutura correta
-  const hasValidRequest = data.item.some((item: any) => {
-    return (
-      item &&
-      typeof item === 'object' &&
-      item.name &&
-      item.request &&
-      item.request.method &&
-      item.request.url
-    );
-  });
+  // Extrair requests recursivamente (suporta folders aninhados)
+  const allRequests = extractRequestsRecursively(data.item);
 
-  if (!hasValidRequest) {
+  if (allRequests.length === 0) {
     return { valid: false, error: 'Nenhuma request válida encontrada na collection' };
   }
 
@@ -157,8 +175,11 @@ export function parsePostmanCollection(data: any): ParsedCollection {
   const requests: ParsedRequest[] = [];
   const methodCounts: Record<string, number> = {};
 
-  // Processar cada item da collection
-  for (const item of collection.item) {
+  // Extrair todas as requests recursivamente (suporta folders aninhados)
+  const allItems = extractRequestsRecursively(collection.item);
+
+  // Processar cada request encontrada
+  for (const item of allItems) {
     try {
       const url = extractUrl(item.request.url);
 
