@@ -66,6 +66,24 @@ interface SelectedEndpoint {
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type HttpMethod = typeof HTTP_METHODS[number];
 
+/**
+ * Converte URL externa para usar proxy local do Vite (contorna CORS)
+ * Exemplo: https://usapi.spearwatch.com/rest-api/v1/users -> /api/rest-api/v1/users
+ */
+function buildProxiedUrl(originalUrl: string): string {
+  const PROXY_TARGET = import.meta.env.VITE_API_TARGET;
+  const PROXY_PATH = '/api';
+
+  // Se a URL começa com a URL base configurada no proxy, usa o proxy local
+  if (originalUrl.startsWith(PROXY_TARGET)) {
+    const urlWithoutBase = originalUrl.substring(PROXY_TARGET.length);
+    return `${PROXY_PATH}${urlWithoutBase}`;
+  }
+
+  // Se não, mantém URL original (pode ser localhost ou outra API)
+  return originalUrl;
+}
+
 export function ApiTester() {
   const [isLoading, setIsLoading] = useState(false);
   const [responses, setResponses] = useState<ApiResponse[]>([]);
@@ -382,7 +400,9 @@ export function ApiTester() {
           options.body = endpoint.body.trim();
         }
 
-        const res = await fetch(endpoint.url, options);
+        // Usa proxy local para contornar CORS (funciona como Postman)
+        const proxiedUrl = buildProxiedUrl(endpoint.url);
+        const res = await fetch(proxiedUrl, options);
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -733,9 +753,9 @@ export function ApiTester() {
                                   disabled={isLoading}
                                 >
                                   <SelectTrigger id={`endpoint-${selectedEndpoint.id}`}>
-                                    <SelectValue placeholder="Selecione um endpoint" />
+                                    <SelectValue placeholder="Selecione um endpoint 1" />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent className="max-h-[300px] max-w-[1300px]">
                                     {endpoints.map((endpoint) => {
                                       const inUse = isEndpointInUse(endpoint.id, selectedEndpoint.id);
                                       return (

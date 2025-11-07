@@ -37,15 +37,8 @@ export async function saveResponseFields(fields: FieldToSave[]): Promise<void> {
 
   const { error } = await supabase
     .from('response_fields')
-    .upsert(dataToInsert, {
-      onConflict: 'title,metodo,url,endpoint,campo,detalhes',
-      ignoreDuplicates: false,
-    })
+    .insert(dataToInsert)
     .select();
-
-  if (error) {
-    throw new Error(`Erro ao salvar campos: ${error.message}`);
-  }
 }
 
 /**
@@ -71,14 +64,14 @@ export async function getFieldsByEndpoint(
 
 /**
  * Busca todos os campos salvos
- * Limite aumentado para 2000 registros por consulta
+ * Limite aumentado para 10000 registros por consulta
  */
 export async function getAllFields(): Promise<ResponseField[]> {
   const { data, error } = await supabase
     .from('response_fields')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(2000);
+    .limit(10000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos: ${error.message}`);
@@ -110,7 +103,7 @@ export async function updateFieldDescription(
 
 /**
  * Busca campos que não possuem descrição
- * Limite aumentado para 2000 registros por consulta
+ * Limite aumentado para 10000 registros por consulta
  */
 export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
   const { data, error } = await supabase
@@ -118,7 +111,7 @@ export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
     .select('*')
     .or('descricao.is.null,descricao.eq.')
     .order('created_at', { ascending: false })
-    .limit(2000);
+    .limit(10000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos sem descrição: ${error.message}`);
@@ -129,7 +122,7 @@ export async function getFieldsWithoutDescription(): Promise<ResponseField[]> {
 
 /**
  * Busca campos que possuem descrição preenchida
- * Limite aumentado para 2000 registros por consulta
+ * Limite aumentado para 10000 registros por consulta
  */
 export async function getFieldsWithDescription(): Promise<ResponseField[]> {
   const { data, error } = await supabase
@@ -137,8 +130,8 @@ export async function getFieldsWithDescription(): Promise<ResponseField[]> {
     .select('*')
     .not('descricao', 'is', null)
     .neq('descricao', '')
-    .order('created_at', { ascending: false })
-    .limit(2000);
+    .order('id', { ascending: true })
+    .limit(10000);
 
   if (error) {
     throw new Error(`Erro ao buscar campos com descrição: ${error.message}`);
