@@ -1,27 +1,28 @@
-import { supabase } from '../lib/supabase';
-import type { Tables, TablesInsert, TablesUpdate } from '../lib/database.types';
+import type { Endpoint, EndpointInsert, EndpointUpdate } from '../lib/database.types';
 
-export type Endpoint = Tables<'endpoints'>;
-export type EndpointInsert = TablesInsert<'endpoints'>;
-export type EndpointUpdate = TablesUpdate<'endpoints'>;
-
+export type { Endpoint, EndpointInsert, EndpointUpdate };
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+// Use /api which will be proxied by Vite to the backend
+const API_BASE_URL = '/api';
 
 /**
  * Busca todos os endpoints cadastrados
  * Ordenados por data de criação (mais recentes primeiro)
  */
 export async function getEndpoints(): Promise<Endpoint[]> {
-  const { data, error } = await supabase
-    .from('endpoints')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    const response = await fetch(`${API_BASE_URL}/endpoints`);
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const endpoints = await response.json();
+    return endpoints;
+  } catch (error: any) {
     throw new Error(`Erro ao buscar endpoints: ${error.message}`);
   }
-
-  return data || [];
 }
 
 /**
@@ -31,17 +32,25 @@ export async function createEndpoint(
   metodo: HttpMethod,
   url: string
 ): Promise<Endpoint> {
-  const { data, error } = await supabase
-    .from('endpoints')
-    .insert({ metodo, url })
-    .select()
-    .single();
+  try {
+    const response = await fetch(`${API_BASE_URL}/endpoints`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ metodo, url }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const endpoint = await response.json();
+    return endpoint;
+  } catch (error: any) {
     throw new Error(`Erro ao criar endpoint: ${error.message}`);
   }
-
-  return data;
 }
 
 /**
@@ -52,30 +61,41 @@ export async function updateEndpoint(
   metodo: HttpMethod,
   url: string
 ): Promise<Endpoint> {
-  const { data, error } = await supabase
-    .from('endpoints')
-    .update({ metodo, url })
-    .eq('id', id)
-    .select()
-    .single();
+  try {
+    const response = await fetch(`${API_BASE_URL}/endpoints/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ metodo, url }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const endpoint = await response.json();
+    return endpoint;
+  } catch (error: any) {
     throw new Error(`Erro ao atualizar endpoint: ${error.message}`);
   }
-
-  return data;
 }
 
 /**
  * Deleta um endpoint
  */
 export async function deleteEndpoint(id: number): Promise<void> {
-  const { error } = await supabase
-    .from('endpoints')
-    .delete()
-    .eq('id', id);
+  try {
+    const response = await fetch(`${API_BASE_URL}/endpoints/${id}`, {
+      method: 'DELETE',
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+  } catch (error: any) {
     throw new Error(`Erro ao deletar endpoint: ${error.message}`);
   }
 }

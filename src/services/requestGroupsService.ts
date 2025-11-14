@@ -1,15 +1,9 @@
-// src/services/requestGroupsService.ts
+import type { RequestGroup, GroupRequest } from '../lib/database.types';
 
-import { supabase } from '../lib/supabase';
-import type { Tables, TablesInsert, TablesUpdate } from '../lib/database.types';
+export type { RequestGroup, GroupRequest };
 
-export type RequestGroup = Tables<'request_groups'>;
-export type RequestGroupInsert = TablesInsert<'request_groups'>;
-export type RequestGroupUpdate = TablesUpdate<'request_groups'>;
-
-export type GroupRequest = Tables<'group_requests'>;
-export type GroupRequestInsert = TablesInsert<'group_requests'>;
-export type GroupRequestUpdate = TablesUpdate<'group_requests'>;
+// Use /api which will be proxied by Vite to the backend
+const API_BASE_URL = '/api';
 
 /**
  * Interface para request completa (com dados do endpoint)
@@ -34,123 +28,121 @@ export interface RequestToSave {
 
 /**
  * Busca todos os grupos cadastrados
- * Ordenados por nome (alfabético)
  */
 export async function getGroups(): Promise<RequestGroup[]> {
-  const { data, error } = await supabase
-    .from('request_groups')
-    .select('*')
-    .order('name', { ascending: true });
+  try {
+    const response = await fetch(`${API_BASE_URL}/request-groups`);
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const groups = await response.json();
+    return groups;
+  } catch (error: any) {
     throw new Error(`Erro ao buscar grupos: ${error.message}`);
   }
-
-  return data || [];
 }
 
 /**
  * Cria um novo grupo vazio
  */
 export async function createGroup(name: string): Promise<RequestGroup> {
-  // Verifica se já existe um grupo com este nome
-  const { data: existing } = await supabase
-    .from('request_groups')
-    .select('id')
-    .eq('name', name)
-    .single();
+  try {
+    const response = await fetch(`${API_BASE_URL}/request-groups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name }),
+    });
 
-  if (existing) {
-    throw new Error('Já existe um grupo com este nome');
-  }
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
 
-  const { data, error } = await supabase
-    .from('request_groups')
-    .insert({ name })
-    .select()
-    .single();
-
-  if (error) {
+    const group = await response.json();
+    return group;
+  } catch (error: any) {
     throw new Error(`Erro ao criar grupo: ${error.message}`);
   }
-
-  return data;
 }
 
 /**
  * Deleta um grupo (cascade deleta as requests do grupo)
  */
 export async function deleteGroup(id: number): Promise<void> {
-  const { error } = await supabase
-    .from('request_groups')
-    .delete()
-    .eq('id', id);
+  try {
+    const response = await fetch(`${API_BASE_URL}/request-groups/${id}`, {
+      method: 'DELETE',
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+  } catch (error: any) {
     throw new Error(`Erro ao deletar grupo: ${error.message}`);
   }
 }
 
 /**
  * Busca todas as requests de um grupo específico
- * Retorna com dados completos do endpoint e ordenado por order_index
  */
 export async function getGroupRequests(groupId: number): Promise<GroupRequestWithEndpoint[]> {
-  const { data, error } = await supabase
-    .from('group_requests')
-    .select(`
-      *,
-      endpoint:endpoints(id, metodo, url)
-    `)
-    .eq('group_id', groupId)
-    .order('order_index', { ascending: true });
+  try {
+    const response = await fetch(`${API_BASE_URL}/request-groups/${groupId}`);
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.requests || [];
+  } catch (error: any) {
     throw new Error(`Erro ao buscar requests do grupo: ${error.message}`);
   }
-
-  // Type assertion porque o Supabase não infere corretamente nested selects
-  return (data as unknown as GroupRequestWithEndpoint[]) || [];
 }
 
 /**
  * Salva/sobrescreve todas as requests de um grupo
- * Deleta as requests antigas e insere as novas
  */
 export async function saveGroupRequests(
   groupId: number,
   requests: RequestToSave[]
 ): Promise<void> {
-  // 1. Deleta todas as requests antigas do grupo
-  const { error: deleteError } = await supabase
-    .from('group_requests')
-    .delete()
-    .eq('group_id', groupId);
+  try {
+    // Delete all old requests
+    const existingRequests = await getGroupRequests(groupId);
+    await Promise.all(
+      existingRequests.map(req =>
+        fetch(`${API_BASE_URL}/request-groups/${groupId}/requests/${req.id}`, {
+          method: 'DELETE',
+        })
+      )
+    );
 
-  if (deleteError) {
-    throw new Error(`Erro ao limpar requests antigas: ${deleteError.message}`);
-  }
-
-  // 2. Se não há requests novas, apenas retorna (grupo vazio)
-  if (requests.length === 0) {
-    return;
-  }
-
-  // 3. Insere as novas requests
-  const requestsToInsert: GroupRequestInsert[] = requests.map((req) => ({
-    group_id: groupId,
-    endpoint_id: req.endpointId,
-    body: req.body || null,
-    title: req.title || null,
-    order_index: req.orderIndex,
-  }));
-
-  const { error: insertError } = await supabase
-    .from('group_requests')
-    .insert(requestsToInsert);
-
-  if (insertError) {
-    throw new Error(`Erro ao salvar requests: ${insertError.message}`);
+    // Add new requests
+    if (requests.length > 0) {
+      await Promise.all(
+        requests.map(req =>
+          fetch(`${API_BASE_URL}/request-groups/${groupId}/requests`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              endpoint_id: req.endpointId,
+              body_json: req.body || null,
+              sort_order: req.orderIndex,
+            }),
+          })
+        )
+      );
+    }
+  } catch (error: any) {
+    throw new Error(`Erro ao salvar requests: ${error.message}`);
   }
 }
 
@@ -173,106 +165,83 @@ export interface PostmanImportResult {
 
 /**
  * Importa uma Postman Collection para um novo grupo
- * Cria endpoints se não existirem e associa ao grupo
+ * (Implementação simplificada - usar endpoint dedicado no futuro)
  */
 export async function importPostmanCollection(
   collectionName: string,
   requests: PostmanImportRequest[]
 ): Promise<PostmanImportResult> {
-  // 1. Verificar se já existe grupo com este nome
-  const { data: existingGroup } = await supabase
-    .from('request_groups')
-    .select('id')
-    .eq('name', collectionName)
-    .maybeSingle();
+  try {
+    // Create group
+    const group = await createGroup(collectionName);
 
-  if (existingGroup) {
-    throw new Error(
-      `Já existe um grupo chamado "${collectionName}". Por favor, renomeie a collection ou delete o grupo existente.`
-    );
-  }
+    let endpointsCreated = 0;
+    let endpointsReused = 0;
 
-  // 2. Criar novo grupo
-  const { data: newGroup, error: groupError } = await supabase
-    .from('request_groups')
-    .insert({ name: collectionName })
-    .select()
-    .single();
+    // Import endpoints and requests
+    const requestsToSave: RequestToSave[] = [];
 
-  if (groupError || !newGroup) {
-    throw new Error(`Erro ao criar grupo: ${groupError?.message || 'Grupo não foi criado'}`);
-  }
+    for (let i = 0; i < requests.length; i++) {
+      const request = requests[i];
 
-  let endpointsCreated = 0;
-  let endpointsReused = 0;
+      try {
+        // Try to create endpoint (API will return 409 if exists)
+        const response = await fetch(`${API_BASE_URL}/endpoints`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ metodo: request.method, url: request.url }),
+        });
 
-  // 3. Processar cada request
-  const requestsToSave: RequestToSave[] = [];
+        let endpointId: number;
 
-  for (let i = 0; i < requests.length; i++) {
-    const request = requests[i];
-
-    try {
-      // 3.1. Verificar se endpoint já existe (metodo + url)
-      const { data: existingEndpoint } = await supabase
-        .from('endpoints')
-        .select('id, metodo, url')
-        .eq('metodo', request.method)
-        .eq('url', request.url)
-        .maybeSingle();
-
-      let endpointId: number;
-
-      if (existingEndpoint) {
-        // Endpoint já existe, reutilizar
-        endpointId = existingEndpoint.id;
-        endpointsReused++;
-      } else {
-        // Criar novo endpoint
-        const { data: newEndpoint, error: endpointError } = await supabase
-          .from('endpoints')
-          .insert({
-            metodo: request.method,
-            url: request.url,
-          })
-          .select('id')
-          .single();
-
-        if (endpointError || !newEndpoint) {
-          console.warn(`Erro ao criar endpoint "${request.name}":`, endpointError?.message);
-          continue; // Pular esta request e continuar com as outras
+        if (response.status === 201) {
+          const endpoint = await response.json();
+          endpointId = endpoint.id;
+          endpointsCreated++;
+        } else if (response.status === 409) {
+          // Endpoint exists, fetch it
+          const allEndpoints = await fetch(`${API_BASE_URL}/endpoints`).then(r => r.json());
+          const existing = allEndpoints.find(
+            (e: any) => e.metodo === request.method && e.url === request.url
+          );
+          if (existing) {
+            endpointId = existing.id;
+            endpointsReused++;
+          } else {
+            continue;
+          }
+        } else {
+          continue;
         }
 
-        endpointId = newEndpoint.id;
-        endpointsCreated++;
+        requestsToSave.push({
+          endpointId,
+          body: request.body || '',
+          title: request.name,
+          orderIndex: i,
+        });
+      } catch (err) {
+        console.warn(`Erro ao processar request "${request.name}":`, err);
       }
-
-      // 3.2. Adicionar à lista de requests do grupo
-      requestsToSave.push({
-        endpointId,
-        body: request.body || '',
-        title: request.name,
-        orderIndex: i,
-      });
-    } catch (err) {
-      console.warn(`Erro ao processar request "${request.name}":`, err);
-      // Continuar com as próximas requests
     }
+
+    // Save all requests to group
+    if (requestsToSave.length === 0) {
+      await deleteGroup(group.id);
+      throw new Error('Nenhuma request foi importada com sucesso');
+    }
+
+    await saveGroupRequests(group.id, requestsToSave);
+
+    return {
+      group,
+      endpointsCreated,
+      endpointsReused,
+      totalRequests: requestsToSave.length,
+    };
+  } catch (error: any) {
+    throw new Error(`Erro ao importar Postman collection: ${error.message}`);
   }
-
-  // 4. Salvar todas as requests no grupo
-  if (requestsToSave.length === 0) {
-    // Se nenhuma request foi processada com sucesso, deletar o grupo criado
-    await supabase.from('request_groups').delete().eq('id', newGroup.id);
-    throw new Error('Nenhuma request foi importada com sucesso');
-  }
-
-  await saveGroupRequests(newGroup.id, requestsToSave);
-
-  return {
-    group: newGroup,
-    endpointsCreated,
-    endpointsReused,
-    totalRequests: requestsToSave.length,
-  };
 }

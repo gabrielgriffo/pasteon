@@ -1,0 +1,14 @@
+# Production override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: document-form-app-prod
+    ports:
+      - "80:80"
+    volumes: []  # Remove volume mounts for production
+    command: null  # Use default CMD from Dockerfile (nginx)

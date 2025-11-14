@@ -42,3 +42,8 @@ coverage/
 # Misc
 CLAUDE.md
 .claude
+
+# Docker
+.env.docker.local
+docker-compose.override.yml
+mysql_data/

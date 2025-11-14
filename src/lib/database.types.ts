@@ -1,325 +1,226 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+// ================================================================
+// Database TypeScript Types for MySQL
+// Type definitions for all database tables
+// ================================================================
 
-export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
-  public: {
-    Tables: {
-      ai_provider_settings: {
-        Row: {
-          created_at: string
-          current_rpd: number
-          current_rpm: number
-          id: string
-          is_active: boolean
-          last_reset_day: string
-          last_reset_minute: number
-          provider: string
-          rpd_enabled: boolean
-          rpd_limit: number
-          rpm_enabled: boolean
-          rpm_limit: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          current_rpd?: number
-          current_rpm?: number
-          id?: string
-          is_active?: boolean
-          last_reset_day?: string
-          last_reset_minute?: number
-          provider: string
-          rpd_enabled?: boolean
-          rpd_limit?: number
-          rpm_enabled?: boolean
-          rpm_limit?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          current_rpd?: number
-          current_rpm?: number
-          id?: string
-          is_active?: boolean
-          last_reset_day?: string
-          last_reset_minute?: number
-          provider?: string
-          rpd_enabled?: boolean
-          rpd_limit?: number
-          rpm_enabled?: boolean
-          rpm_limit?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      endpoints: {
-        Row: {
-          created_at: string | null
-          id: number
-          metodo: string
-          url: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: number
-          metodo: string
-          url: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: number
-          metodo?: string
-          url?: string
-        }
-        Relationships: []
-      }
-      group_requests: {
-        Row: {
-          body: string | null
-          created_at: string | null
-          endpoint_id: number
-          group_id: number
-          id: number
-          order_index: number
-          title: string | null
-        }
-        Insert: {
-          body?: string | null
-          created_at?: string | null
-          endpoint_id: number
-          group_id: number
-          id?: number
-          order_index?: number
-          title?: string | null
-        }
-        Update: {
-          body?: string | null
-          created_at?: string | null
-          endpoint_id?: number
-          group_id?: number
-          id?: number
-          order_index?: number
-          title?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_requests_endpoint_id_fkey"
-            columns: ["endpoint_id"]
-            isOneToOne: false
-            referencedRelation: "endpoints"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "group_requests_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "request_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      request_groups: {
-        Row: {
-          created_at: string | null
-          id: number
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: number
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: number
-          name?: string
-        }
-        Relationships: []
-      }
-      response_fields: {
-        Row: {
-          campo: string
-          created_at: string | null
-          descricao: string | null
-          detalhes: string
-          endpoint: string
-          id: number
-          metodo: string
-          tipo: string
-          title: string | null
-          url: string
-        }
-        Insert: {
-          campo: string
-          created_at?: string | null
-          descricao?: string | null
-          detalhes: string
-          endpoint: string
-          id?: number
-          metodo: string
-          tipo?: string
-          title?: string | null
-          url: string
-        }
-        Update: {
-          campo?: string
-          created_at?: string | null
-          descricao?: string | null
-          detalhes?: string
-          endpoint?: string
-          id?: number
-          metodo?: string
-          tipo?: string
-          title?: string | null
-          url?: string
-        }
-        Relationships: []
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
+/**
+ * Table: endpoints
+ * Stores API endpoints (method + URL)
+ */
+export interface Endpoint {
+  id: number;
+  metodo: string;
+  url: string;
+  created_at: Date | string;
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+export interface EndpointInsert {
+  metodo: string;
+  url: string;
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
 
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+export interface EndpointUpdate {
+  metodo?: string;
+  url?: string;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
 
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+/**
+ * Table: response_fields
+ * Stores extracted fields from API responses
+ */
+export interface ResponseField {
+  id: number;
+  metodo: string;
+  url: string;
+  endpoint: string;
+  campo: string;
+  detalhes: string;
+  tipo: string;
+  title: string | null;
+  descricao: string | null;
+  created_at: Date | string;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
 
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+export interface ResponseFieldInsert {
+  metodo: string;
+  url: string;
+  endpoint: string;
+  campo: string;
+  detalhes: string;
+  tipo: string;
+  title?: string | null;
+  descricao?: string | null;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
 
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+export interface ResponseFieldUpdate {
+  metodo?: string;
+  url?: string;
+  endpoint?: string;
+  campo?: string;
+  detalhes?: string;
+  tipo?: string;
+  title?: string | null;
+  descricao?: string | null;
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
 
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const
+/**
+ * Table: request_groups
+ * Stores groups of API requests (e.g., Postman collections)
+ */
+export interface RequestGroup {
+  id: number;
+  name: string;
+  created_at: Date | string;
+}
+
+export interface RequestGroupInsert {
+  name: string;
+}
+
+export interface RequestGroupUpdate {
+  name?: string;
+}
+
+/**
+ * Table: group_requests
+ * Stores individual requests within groups
+ */
+export interface GroupRequest {
+  id: number;
+  group_id: number;
+  endpoint_id: number;
+  body: string | null;
+  title: string | null;
+  order_index: number;
+  created_at: Date | string;
+}
+
+export interface GroupRequestInsert {
+  group_id: number;
+  endpoint_id: number;
+  body?: string | null;
+  title?: string | null;
+  order_index?: number;
+}
+
+export interface GroupRequestUpdate {
+  group_id?: number;
+  endpoint_id?: number;
+  body?: string | null;
+  title?: string | null;
+  order_index?: number;
+}
+
+/**
+ * Table: ai_provider_settings
+ * Stores AI provider rate limit configurations
+ */
+export interface AIProviderSettings {
+  id: string;
+  provider: string;
+  is_active: boolean;
+  rpm_enabled: boolean;
+  rpm_limit: number;
+  current_rpm: number;
+  last_reset_minute: number;
+  rpd_enabled: boolean;
+  rpd_limit: number;
+  current_rpd: number;
+  last_reset_day: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+export interface AIProviderSettingsInsert {
+  id?: string;
+  provider: string;
+  is_active?: boolean;
+  rpm_enabled?: boolean;
+  rpm_limit?: number;
+  current_rpm?: number;
+  last_reset_minute?: number;
+  rpd_enabled?: boolean;
+  rpd_limit?: number;
+  current_rpd?: number;
+  last_reset_day?: string;
+}
+
+export interface AIProviderSettingsUpdate {
+  provider?: string;
+  is_active?: boolean;
+  rpm_enabled?: boolean;
+  rpm_limit?: number;
+  current_rpm?: number;
+  last_reset_minute?: number;
+  rpd_enabled?: boolean;
+  rpd_limit?: number;
+  current_rpd?: number;
+  last_reset_day?: string;
+}
+
+/**
+ * Table: field_dictionary
+ * Stores field dictionary imported from Excel
+ */
+export interface FieldDictionary {
+  id: number;
+  business_element_name: string;
+  description: string | null;
+  reference_scots_table: string | null;
+  json_path: string | null;
+  element_name: string | null;
+  element_type: string | null;
+  json_data_type: string | null;
+  example: string | null;
+  created_at: Date | string;
+}
+
+export interface FieldDictionaryInsert {
+  business_element_name: string;
+  description?: string | null;
+  reference_scots_table?: string | null;
+  json_path?: string | null;
+  element_name?: string | null;
+  element_type?: string | null;
+  json_data_type?: string | null;
+  example?: string | null;
+}
+
+export interface FieldDictionaryUpdate {
+  business_element_name?: string;
+  description?: string | null;
+  reference_scots_table?: string | null;
+  json_path?: string | null;
+  element_name?: string | null;
+  element_type?: string | null;
+  json_data_type?: string | null;
+  example?: string | null;
+}
+
+// Legacy support - kept for backward compatibility
+export type Tables<T extends string> =
+  T extends 'endpoints' ? Endpoint :
+  T extends 'response_fields' ? ResponseField :
+  T extends 'request_groups' ? RequestGroup :
+  T extends 'group_requests' ? GroupRequest :
+  T extends 'ai_provider_settings' ? AIProviderSettings :
+  T extends 'field_dictionary' ? FieldDictionary :
+  never;
+
+export type TablesInsert<T extends string> =
+  T extends 'endpoints' ? EndpointInsert :
+  T extends 'response_fields' ? ResponseFieldInsert :
+  T extends 'request_groups' ? RequestGroupInsert :
+  T extends 'group_requests' ? GroupRequestInsert :
+  T extends 'ai_provider_settings' ? AIProviderSettingsInsert :
+  T extends 'field_dictionary' ? FieldDictionaryInsert :
+  never;
+
+export type TablesUpdate<T extends string> =
+  T extends 'endpoints' ? EndpointUpdate :
+  T extends 'response_fields' ? ResponseFieldUpdate :
+  T extends 'request_groups' ? RequestGroupUpdate :
+  T extends 'group_requests' ? GroupRequestUpdate :
+  T extends 'ai_provider_settings' ? AIProviderSettingsUpdate :
+  T extends 'field_dictionary' ? FieldDictionaryUpdate :
+  never;

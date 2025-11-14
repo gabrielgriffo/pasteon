@@ -1,6 +1,7 @@
 # Pasteon - API Testing & Documentation Tool
 
-Uma ferramenta completa para testar APIs e documentar automaticamente os campos de requisições e respostas. Salva automaticamente todos os campos extraídos em um banco de dados Supabase, permitindo construir uma documentação viva da sua API.
+Uma ferramenta completa para testar APIs e documentar automaticamente os campos de requisições e respostas. Salva automaticamente todos os campos extraídos em um banco de dados MySQL local, permitindo construir uma documentação viva da sua API.
+
 
 ## 📋 Sobre o Projeto
 
@@ -41,7 +42,7 @@ Todos os campos são salvos no banco de dados com detalhes sobre tipo, valor de 
 - **Exportação para Excel** - Copie dados formatados com um clique
 
 ### 💾 Documentação Automática
-- **Salvamento automático** - Todos os campos são salvos no Supabase após cada requisição bem-sucedida
+- **Salvamento automático** - Todos os campos são salvos no MySQL após cada requisição bem-sucedida
 - **Prevenção de duplicatas** - Constraint única evita campos repetidos
 - **Extração inteligente** - Suporta objetos aninhados com notação de pontos (ex: `user.address.city`)
 - **Tipos identificados** - Cada campo é marcado como Body, Query Params ou Response
@@ -54,7 +55,7 @@ Todos os campos são salvos no banco de dados com detalhes sobre tipo, valor de 
 - **Progresso ao Vivo** - Acompanhe o processamento com estimativas de tempo
 - **Rate Limit Inteligente** - RPM e RPD configuráveis por provider, salvos no banco
 - **Exportação Completa** - Copie toda a documentação em formato de tabela
-- **Configuração Persistente** - Settings sincronizados via Supabase entre dispositivos
+- **Configuração Persistente** - Settings salvos localmente no MySQL
 - **Toasts Informativos** - Notificações em tempo real de todas as operações
 
 ## 🛠️ Tecnologias
@@ -63,16 +64,22 @@ Todos os campos são salvos no banco de dados com detalhes sobre tipo, valor de 
 - **React 18** - Biblioteca UI
 - **TypeScript** - Tipagem estática
 - **Vite** - Build tool com HMR
-- **TailwindCSS** - Estilização (via CDN)
+- **TailwindCSS** - Estilização
+- **shadcn/ui** - Componentes UI
 
-### Backend/Database
-- **Supabase** - Backend as a Service
-- **PostgreSQL** - Banco de dados relacional
-- **Row Level Security (RLS)** - Políticas de acesso público
+### Backend
+- **Express.js** - Framework web
+- **Node.js 20** - Runtime JavaScript
+- **mysql2** - Driver MySQL com Promises
+- **CORS** - Middleware para cross-origin requests
 
-### Ferramentas
-- **Supabase CLI** - Gerenciamento de migrations
-- **TypeScript Type Generation** - Types gerados automaticamente do schema do banco
+### Database
+- **MySQL 8.0** - Banco de dados relacional
+- **Connection Pool** - Gerenciamento eficiente de conexões
+
+### DevOps
+- **Docker** - Containerização
+- **Docker Compose** - Orquestração multi-container
 
 ## 📁 Estrutura do Banco de Dados
 
@@ -81,9 +88,9 @@ Armazena os endpoints configurados pelo usuário.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| id | BIGSERIAL | ID único (autoincremento) |
-| metodo | TEXT | Método HTTP (GET, POST, PUT, PATCH, DELETE) |
-| url | TEXT | URL completa do endpoint |
+| id | INT AUTO_INCREMENT | ID único (autoincremento) |
+| metodo | VARCHAR(10) | Método HTTP (GET, POST, PUT, PATCH, DELETE) |
+| url | VARCHAR(2048) | URL completa do endpoint |
 | created_at | TIMESTAMP | Data de criação |
 
 **Constraint**: Método + URL devem ser únicos
@@ -93,12 +100,12 @@ Armazena todos os campos extraídos de requisições (body, query params e respo
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| id | BIGSERIAL | ID único (autoincremento) |
-| metodo | TEXT | Método HTTP da requisição |
-| url | TEXT | Origem da URL (ex: https://api.exemplo.com) |
-| endpoint | TEXT | Path do endpoint (ex: /users) |
-| tipo | TEXT | Tipo do campo: 'Body', 'Query Params' ou 'Response' |
-| campo | TEXT | Nome/caminho do campo (ex: user.name) |
+| id | INT AUTO_INCREMENT | ID único (autoincremento) |
+| metodo | VARCHAR(10) | Método HTTP da requisição |
+| url | VARCHAR(2048) | Origem da URL (ex: https://api.exemplo.com) |
+| endpoint | VARCHAR(512) | Path do endpoint (ex: /users) |
+| tipo | VARCHAR(50) | Tipo do campo: 'Body', 'Query Params' ou 'Response' |
+| campo | VARCHAR(512) | Nome/caminho do campo (ex: user.name) |
 | detalhes | TEXT | Tipo e valor exemplo (ex: [string] e.g.: João) |
 | descricao | TEXT | Descrição do campo (vazio por enquanto, uso futuro) |
 | created_at | TIMESTAMP | Data de criação |
@@ -186,62 +193,104 @@ https://api.exemplo.com/users?id=123&active=true
 
 ## 🚀 Como Executar
 
-### Pré-requisitos
+### 🐳 Opção 1: Docker (Recomendado - Mais Fácil)
+
+**Um único comando faz tudo automaticamente:**
+
+```bash
+docker-compose up
+```
+
+✅ O que o Docker faz automaticamente:
+- Instala MySQL 8.0
+- Cria o banco de dados `document_form`
+- Executa o schema.sql (cria todas as 6 tabelas)
+- Instala dependências do backend (Express.js)
+- Instala dependências do frontend (React)
+- Inicia o backend na porta 3001
+- Inicia o frontend na porta 5173
+
+**Acesse:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3001
+- MySQL: localhost:3306
+
+**Comandos úteis:**
+```bash
+# Parar tudo
+docker-compose down
+
+# Ver logs
+docker-compose logs -f
+
+# Reconstruir e iniciar
+docker-compose up --build
+
+# Limpar tudo (reset total)
+docker-compose down -v
+```
+
+---
+
+### 💻 Opção 2: Desenvolvimento Local (Manual)
+
+**Pré-requisitos:**
 - Node.js 20+
-- Conta no Supabase
+- MySQL Server 8.0+
 
-### Configuração
+**Passos:**
 
-1. Clone o repositório e instale dependências:
+1. **Instale e configure MySQL**:
 ```bash
+# macOS
+brew install mysql && brew services start mysql
+
+# Linux
+sudo apt install mysql-server && sudo systemctl start mysql
+
+# Windows: https://dev.mysql.com/downloads/installer/
+```
+
+2. **Crie o banco de dados**:
+```bash
+mysql -u root -p
+CREATE DATABASE document_form CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+EXIT;
+
+# Importe o schema
+mysql -u root -p document_form < schema.sql
+```
+
+3. **Configure o Backend**:
+```bash
+cd backend
 npm install
-```
-
-2. Configure as variáveis de ambiente:
-```bash
-# Copie o arquivo de exemplo
 cp .env.example .env
+# Edite backend/.env com suas credenciais MySQL
 ```
 
-Edite o arquivo `.env` com suas credenciais:
-
-```env
-# ============================================
-# SUPABASE CONFIGURATION
-# ============================================
-VITE_SUPABASE_URL=sua-url-aqui
-VITE_SUPABASE_ANON_KEY=sua-chave-aqui
-
-# ============================================
-# AI PROVIDER CONFIGURATION
-# ============================================
-# Choose: 'ollama' (local) or 'gemini' (cloud)
-VITE_AI_PROVIDER=gemini
-
-# ============================================
-# OLLAMA (LOCAL)
-# ============================================
-VITE_OLLAMA_URL=http://localhost:11434
-VITE_OLLAMA_MODEL=llama3.2
-
-# ============================================
-# GOOGLE GEMINI (CLOUD)
-# ============================================
-# Get your API key at: https://aistudio.google.com/
-VITE_GEMINI_API_KEY=sua_chave_aqui
-VITE_GEMINI_MODEL=gemini-2.0-flash-exp
-```
-
-> 💡 **Onde encontrar as credenciais?**
-> - **Supabase**: [Dashboard](https://supabase.com/dashboard) → Seu Projeto → Settings → API
-> - **Gemini API Key**: [Google AI Studio](https://aistudio.google.com/) (gratuito)
-
-3. Inicie o servidor de desenvolvimento:
+4. **Configure o Frontend**:
 ```bash
-npm run dev
+cd ..
+npm install
+cp .env.example .env
+# Edite .env com VITE_API_URL=http://localhost:3001
 ```
 
-Acesse: `http://localhost:5173`
+5. **Inicie os serviços** (use 3 terminais):
+```bash
+# Terminal 1: Backend
+cd backend
+npm run dev
+
+# Terminal 2: Frontend
+npm run dev
+
+# Terminal 3: Ollama (opcional, se usar IA local)
+ollama serve
+```
+
+**Acesse:** http://localhost:5173
 
 ---
 
@@ -346,29 +395,42 @@ VITE_GROQ_MODEL=llama3-8b-8192
 
 ### Alternar entre Providers e Configurar Rate Limits
 
-Você pode alternar entre Ollama, Gemini e Groq e configurar limites personalizados:
+Você pode alternar entre Ollama, Gemini, Groq e OpenRouter e configurar limites personalizados:
 1. No aplicativo (Auto Docs), clique em "Configurar IA"
 2. Selecione o provider desejado
 3. Configure RPM (requisições por minuto) e RPD (requisições por dia):
    - **RPM**: Sistema aguarda até próximo minuto ao atingir limite
    - **RPD**: Cancela processamento ao atingir limite diário (reset à meia-noite)
 4. Clique em "Testar Conexão" para verificar disponibilidade
-5. Salve as configurações (sincronizadas automaticamente no banco)
+5. Salve as configurações (armazenadas no banco de dados MySQL)
 
 ---
 
-### Build para Produção
+---
+
+## 📦 Build para Produção
+
+### Docker Production Build
+
 ```bash
+# Build otimizado com nginx
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Acesse: http://localhost (porta 80)
+```
+
+### Local Production Build
+
+```bash
+# Frontend
 npm run build
 npm run preview
-```
 
-### Docker (Opcional)
-```bash
-docker build -t api-tester .
-docker run -p 3000:3000 api-tester
+# Backend
+cd backend
+NODE_ENV=production npm start
 ```
 
 ---
 
-**Desenvolvido com React + TypeScript + Vite + Supabase**
+**Desenvolvido com React + TypeScript + Vite + Express.js + MySQL** 🚀

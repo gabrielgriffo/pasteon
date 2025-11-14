@@ -1,0 +1,102 @@
+services:
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: document-form-mysql
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: document_form
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      # Persistent data storage
+      - mysql_data:/var/lib/mysql
+      # Auto-initialize database schema
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - document-form-network
+
+  # Express.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../Dockerfile.backend
+    container_name: document-form-backend
+    restart: unless-stopped
+    environment:
+      # MySQL Connection
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: document_form
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+      # Server Configuration
+      PORT: 3001
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount source code for hot-reload in development
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - document-form-network
+    command: npm run dev
+
+  # React + Vite Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: document-form-app
+    restart: unless-stopped
+    environment:
+      # Backend API URL
+      VITE_API_URL: http://backend:3001
+      # AI Providers (use your own keys)
+      VITE_AI_PROVIDER: ${VITE_AI_PROVIDER:-gemini}
+      VITE_OLLAMA_URL: ${VITE_OLLAMA_URL:-http://host.docker.internal:11434}
+      VITE_OLLAMA_MODEL: ${VITE_OLLAMA_MODEL:-llama3.2}
+      VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY:-}
+      VITE_GEMINI_MODEL: ${VITE_GEMINI_MODEL:-gemini-2.0-flash-exp}
+      VITE_GROQ_API_KEY: ${VITE_GROQ_API_KEY:-}
+      VITE_GROQ_MODEL: ${VITE_GROQ_MODEL:-llama3-8b-8192}
+      VITE_OPENROUTER_API_KEY: ${VITE_OPENROUTER_API_KEY:-}
+      VITE_OPENROUTER_MODEL: ${VITE_OPENROUTER_MODEL:-meta-llama/llama-3.2-3b-instruct:free}
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot-reload in development
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      mysql:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - document-form-network
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  document-form-network:
+    driver: bridge

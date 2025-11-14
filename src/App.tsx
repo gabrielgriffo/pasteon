@@ -10,11 +10,12 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wrench, FileText } from 'lucide-react';
+import { Wrench, FileText, FileSpreadsheet } from 'lucide-react';
 import { RequestBuilder } from '@/features/api-tester/RequestBuilder';
 import { AutoDocs } from '@/features/auto-docs/AutoDocs';
+import { DictionaryImport } from '@/features/dictionary-import/DictionaryImport';
 
-type Page = 'request-builder' | 'auto-docs';
+type Page = 'request-builder' | 'auto-docs' | 'dictionary-import';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('request-builder');
@@ -29,6 +30,11 @@ export function App() {
       id: 'auto-docs' as Page,
       title: 'Auto Docs',
       icon: FileText,
+    },
+    {
+      id: 'dictionary-import' as Page,
+      title: 'Importar Dicionário',
+      icon: FileSpreadsheet,
     },
   ];
 
@@ -70,6 +76,7 @@ export function App() {
           <div className="flex-1 overflow-auto">
             {currentPage === 'request-builder' && <RequestBuilder />}
             {currentPage === 'auto-docs' && <AutoDocs />}
+            {currentPage === 'dictionary-import' && <DictionaryImport />}
           </div>
         </SidebarInset>
       </SidebarProvider>

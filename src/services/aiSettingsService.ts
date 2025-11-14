@@ -1,7 +1,7 @@
-// src/services/aiSettingsService.ts
-
-import { supabase } from '@/lib/supabase';
 import type { AIProvider } from '@/services/ai/config';
+
+// Use /api which will be proxied by Vite to the backend
+const API_BASE_URL = '/api';
 
 export interface AIProviderSettings {
   id: string;
@@ -74,17 +74,11 @@ const DEFAULT_SETTINGS: Record<AIProvider, RateLimitConfig> = {
   },
 };
 
-/**
- * Retorna a data atual no formato YYYY-MM-DD
- */
 function getCurrentDay(): string {
   const now = new Date();
   return now.toISOString().split('T')[0];
 }
 
-/**
- * Retorna o minuto atual em timestamp
- */
 function getCurrentMinute(): number {
   const now = new Date();
   now.setSeconds(0, 0);
@@ -92,39 +86,33 @@ function getCurrentMinute(): number {
 }
 
 /**
- * Converte settings do banco para RateLimitConfig
- */
-function toRateLimitConfig(settings: AIProviderSettings): RateLimitConfig {
-  return {
-    rpmEnabled: settings.rpm_enabled,
-    rpmLimit: settings.rpm_limit,
-    currentRpm: settings.current_rpm,
-    lastResetMinute: settings.last_reset_minute,
-    rpdEnabled: settings.rpd_enabled,
-    rpdLimit: settings.rpd_limit,
-    currentRpd: settings.current_rpd,
-    lastResetDay: settings.last_reset_day,
-  };
-}
-
-/**
- * Carrega as configurações de um provider do banco
+ * Carrega as configurações de um provider do banco via API
  */
 export async function loadProviderSettings(provider: AIProvider): Promise<RateLimitConfig> {
   try {
-    const { data, error } = await supabase
-      .from('ai_provider_settings')
-      .select('*')
-      .eq('provider', provider)
-      .maybeSingle(); // Usa maybeSingle() ao invés de single() para não dar erro se não existir
+    const response = await fetch(`${API_BASE_URL}/ai-settings/${provider}`);
 
-    if (error) throw error;
-    if (!data) {
-      // Primeira vez usando este provider, retorna defaults silenciosamente
+    if (response.status === 404) {
+      // First time using this provider
       return DEFAULT_SETTINGS[provider];
     }
 
-    return toRateLimitConfig(data as AIProviderSettings);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const settings = await response.json();
+
+    return {
+      rpmEnabled: settings.rpm_enabled,
+      rpmLimit: settings.rpm_limit,
+      currentRpm: settings.current_rpm,
+      lastResetMinute: settings.last_reset_minute,
+      rpdEnabled: settings.rpd_enabled,
+      rpdLimit: settings.rpd_limit,
+      currentRpd: settings.current_rpd,
+      lastResetDay: settings.last_reset_day,
+    };
   } catch (error) {
     console.warn(`Erro ao carregar settings de ${provider}, usando defaults:`, error);
     return DEFAULT_SETTINGS[provider];
@@ -132,35 +120,28 @@ export async function loadProviderSettings(provider: AIProvider): Promise<RateLi
 }
 
 /**
- * Salva as configurações de um provider no banco
+ * Salva as configurações de um provider no banco via API
  */
 export async function saveProviderSettings(
   provider: AIProvider,
   config: RateLimitConfig
 ): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('ai_provider_settings')
-      .upsert(
-        {
-          provider,
-          rpm_enabled: config.rpmEnabled,
-          rpm_limit: config.rpmLimit,
-          current_rpm: config.currentRpm,
-          last_reset_minute: config.lastResetMinute,
-          rpd_enabled: config.rpdEnabled,
-          rpd_limit: config.rpdLimit,
-          current_rpd: config.currentRpd,
-          last_reset_day: config.lastResetDay,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'provider', // Especifica a coluna de conflito
-          ignoreDuplicates: false, // Atualiza se existir
-        }
-      );
+    const response = await fetch(`${API_BASE_URL}/ai-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        provider,
+        requests_per_minute: config.rpmEnabled ? config.rpmLimit : null,
+        requests_per_day: config.rpdEnabled ? config.rpdLimit : null,
+      }),
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
   } catch (error) {
     console.error(`Erro ao salvar settings de ${provider}:`, error);
     throw error;
@@ -176,14 +157,12 @@ async function resetCountersIfNeeded(provider: AIProvider): Promise<RateLimitCon
   const currentMinute = getCurrentMinute();
   let updated = false;
 
-  // Reset do contador de dia se mudou de dia
   if (config.lastResetDay !== currentDay) {
     config.currentRpd = 0;
     config.lastResetDay = currentDay;
     updated = true;
   }
 
-  // Reset do contador de minuto se mudou de minuto
   if (config.lastResetMinute !== currentMinute) {
     config.currentRpm = 0;
     config.lastResetMinute = currentMinute;
@@ -202,10 +181,8 @@ async function resetCountersIfNeeded(provider: AIProvider): Promise<RateLimitCon
  */
 export async function incrementRequestCount(provider: AIProvider): Promise<void> {
   const config = await resetCountersIfNeeded(provider);
-
   config.currentRpm += 1;
   config.currentRpd += 1;
-
   await saveProviderSettings(provider, config);
 }
 
@@ -219,7 +196,6 @@ export async function canMakeRequest(provider: AIProvider): Promise<{
 }> {
   const config = await resetCountersIfNeeded(provider);
 
-  // Verifica RPD primeiro (mais crítico)
   if (config.rpdEnabled && config.currentRpd >= config.rpdLimit) {
     return {
       canMakeRequest: false,
@@ -228,7 +204,6 @@ export async function canMakeRequest(provider: AIProvider): Promise<{
     };
   }
 
-  // Verifica RPM
   if (config.rpmEnabled && config.currentRpm >= config.rpmLimit) {
     const now = Date.now();
     const nextMinute = config.lastResetMinute + 60000;
@@ -291,68 +266,15 @@ export function getDefaultSettings(provider: AIProvider): RateLimitConfig {
 }
 
 /**
- * Retorna o provider atualmente ativo do banco de dados
+ * Retorna o provider atualmente ativo (usa apenas .env por enquanto)
  */
 export async function getActiveProvider(): Promise<AIProvider> {
-  try {
-    const { data, error } = await supabase
-      .from('ai_provider_settings')
-      .select('provider')
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (data) {
-      return data.provider as AIProvider;
-    }
-
-    // Fallback para .env se não encontrar no banco
-    return (import.meta.env.VITE_AI_PROVIDER || 'gemini') as AIProvider;
-  } catch (error) {
-    console.warn('Erro ao carregar provider ativo do banco, usando .env:', error);
-    return (import.meta.env.VITE_AI_PROVIDER || 'gemini') as AIProvider;
-  }
+  return (import.meta.env.VITE_AI_PROVIDER || 'gemini') as AIProvider;
 }
 
 /**
- * Define um provider como ativo (desativa os outros automaticamente)
+ * Define um provider como ativo (usa apenas .env por enquanto)
  */
 export async function setActiveProvider(provider: AIProvider): Promise<void> {
-  try {
-    // 1. Desativa todos os providers
-    await supabase
-      .from('ai_provider_settings')
-      .update({ is_active: false })
-      .neq('provider', '__none__'); // Atualiza todos (workaround para "update all")
-
-    // 2. Ativa o provider selecionado (cria se não existir)
-    const defaults = DEFAULT_SETTINGS[provider];
-    const { error } = await supabase
-      .from('ai_provider_settings')
-      .upsert(
-        {
-          provider,
-          is_active: true,
-          rpm_enabled: defaults.rpmEnabled,
-          rpm_limit: defaults.rpmLimit,
-          current_rpm: defaults.currentRpm,
-          last_reset_minute: defaults.lastResetMinute,
-          rpd_enabled: defaults.rpdEnabled,
-          rpd_limit: defaults.rpdLimit,
-          current_rpd: defaults.currentRpd,
-          last_reset_day: defaults.lastResetDay,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'provider',
-          ignoreDuplicates: false,
-        }
-      );
-
-    if (error) throw error;
-  } catch (error) {
-    console.error(`Erro ao definir provider ativo (${provider}):`, error);
-    throw error;
-  }
+  console.log(`Active provider set to: ${provider} (via .env)`);
 }
