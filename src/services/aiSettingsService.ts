@@ -134,8 +134,14 @@ export async function saveProviderSettings(
       },
       body: JSON.stringify({
         provider,
-        requests_per_minute: config.rpmEnabled ? config.rpmLimit : null,
-        requests_per_day: config.rpdEnabled ? config.rpdLimit : null,
+        rpm_enabled: config.rpmEnabled,
+        rpm_limit: config.rpmLimit,
+        current_rpm: config.currentRpm,
+        last_reset_minute: config.lastResetMinute,
+        rpd_enabled: config.rpdEnabled,
+        rpd_limit: config.rpdLimit,
+        current_rpd: config.currentRpd,
+        last_reset_day: config.lastResetDay,
       }),
     });
 

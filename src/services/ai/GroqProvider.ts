@@ -70,6 +70,58 @@ export class GroqProvider {
   }
 
   /**
+   * Traduz uma descrição de inglês para Português do Brasil
+   */
+  async translateDescription(description: string): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error('API Key do Groq não configurada. Configure VITE_GROQ_API_KEY no arquivo .env');
+    }
+
+    const prompt = this.buildTranslationPrompt(description);
+
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: this.options.temperature,
+          max_tokens: this.options.max_tokens,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 429) {
+          throw new Error('Rate limit atingido. Aguarde alguns segundos e tente novamente.');
+        }
+
+        throw new Error(
+          `Groq HTTP Error: ${response.status} - ${errorData.error?.message || 'Erro desconhecido'}`
+        );
+      }
+
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content;
+
+      if (!text) {
+        throw new Error('Resposta vazia do Groq');
+      }
+
+      return this.cleanResponse(text);
+    } catch (error) {
+      throw new Error(
+        `Falha ao traduzir com Groq: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      );
+    }
+  }
+
+  /**
    * Verifica se o Groq está disponível (API Key válida)
    */
   async isAvailable(): Promise<boolean> {
@@ -130,6 +182,26 @@ A descrição deve:
 - Ter no máximo 2 frases${complementarySection}
 
 Retorne APENAS a descrição, sem introduções ou explicações adicionais.`;
+  }
+
+  /**
+   * Constrói o prompt para tradução de descrições
+   */
+  private buildTranslationPrompt(description: string): string {
+    return `Você é um tradutor técnico especializado em documentação de APIs.
+
+Traduza a seguinte descrição técnica de API de inglês para Português do Brasil.
+
+DESCRIÇÃO EM INGLÊS:
+${description}
+
+REGRAS:
+- Mantenha termos técnicos apropriados (ex: "token", "endpoint", "array", "boolean")
+- Mantenha a formatação e pontuação
+- Seja preciso e natural em Português do Brasil
+- Não adicione explicações, apenas traduza
+
+Retorne APENAS a tradução em Português do Brasil.`;
   }
 
   /**

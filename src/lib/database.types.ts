@@ -34,6 +34,7 @@ export interface ResponseField {
   url: string;
   endpoint: string;
   campo: string;
+  elemento: string | null;
   detalhes: string;
   tipo: string;
   title: string | null;
@@ -46,6 +47,7 @@ export interface ResponseFieldInsert {
   url: string;
   endpoint: string;
   campo: string;
+  elemento?: string | null;
   detalhes: string;
   tipo: string;
   title?: string | null;
@@ -57,6 +59,7 @@ export interface ResponseFieldUpdate {
   url?: string;
   endpoint?: string;
   campo?: string;
+  elemento?: string | null;
   detalhes?: string;
   tipo?: string;
   title?: string | null;

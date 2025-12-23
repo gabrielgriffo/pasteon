@@ -1,4 +1,4 @@
-// src/features/auto-docs/AutoDocs.tsx
+// src/features/ai-docs/AIDocs.tsx
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { useAIDocumentation } from '@/hooks/useAIDocumentation';
 import { getFieldStatistics, type FieldStatistics } from '@/services/responseFieldsService';
 import { toast } from '@/utils/toast';
 
-export function AutoDocs() {
+export function AIDocs() {
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [invalidCount, setInvalidCount] = useState(0);
@@ -253,7 +253,7 @@ export function AutoDocs() {
 
                   {statistics.withDescription > 0 && (
                     <p className="text-xs text-muted-foreground mt-3 text-center">
-                      Formato: Título | Método | URL | Endpoint | Tipo | Campo | Detalhes | Descrição
+                      Formato: Título | Método | URL | Endpoint | Tipo | Campo | Elemento | Detalhes | Descrição
                     </p>
                   )}
                 </CardContent>

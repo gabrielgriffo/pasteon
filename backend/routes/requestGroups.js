@@ -43,14 +43,15 @@ router.get('/:id', async (req, res) => {
         gr.id,
         gr.group_id,
         gr.endpoint_id,
-        gr.body_json,
-        gr.sort_order,
+        gr.body,
+        gr.title,
+        gr.order_index,
         e.metodo,
         e.url
        FROM group_requests gr
        INNER JOIN endpoints e ON gr.endpoint_id = e.id
        WHERE gr.group_id = ?
-       ORDER BY gr.sort_order ASC`,
+       ORDER BY gr.order_index ASC`,
       [id]
     );
 
@@ -83,6 +84,12 @@ router.post('/', async (req, res) => {
     res.status(201).json(newGroup);
   } catch (error) {
     console.error('Error creating group:', error);
+
+    // Handle duplicate entry error
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A group with this name already exists' });
+    }
+
     res.status(500).json({ error: 'Failed to create group' });
   }
 });
@@ -111,16 +118,16 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/requests', async (req, res) => {
   try {
     const { id } = req.params;
-    const { endpoint_id, body_json, sort_order } = req.body;
+    const { endpoint_id, body, title, order_index } = req.body;
 
     if (!endpoint_id) {
       return res.status(400).json({ error: 'Endpoint ID is required' });
     }
 
     const insertId = await insert(
-      `INSERT INTO group_requests (group_id, endpoint_id, body_json, sort_order)
-       VALUES (?, ?, ?, ?)`,
-      [id, endpoint_id, body_json || null, sort_order || 0]
+      `INSERT INTO group_requests (group_id, endpoint_id, body, title, order_index)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id, endpoint_id, body || null, title || null, order_index || 0]
     );
 
     const newRequest = await querySingle(
@@ -128,8 +135,9 @@ router.post('/:id/requests', async (req, res) => {
         gr.id,
         gr.group_id,
         gr.endpoint_id,
-        gr.body_json,
-        gr.sort_order,
+        gr.body,
+        gr.title,
+        gr.order_index,
         e.metodo,
         e.url
        FROM group_requests gr

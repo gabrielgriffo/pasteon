@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS response_fields (
   url VARCHAR(2048) NOT NULL COMMENT 'API URL',
   endpoint VARCHAR(512) NOT NULL COMMENT 'Endpoint path',
   campo VARCHAR(512) NOT NULL COMMENT 'Field path (e.g., data.user.name)',
+  elemento VARCHAR(255) DEFAULT NULL COMMENT 'Last segment of campo (e.g., name)',
   detalhes TEXT NOT NULL COMMENT 'Field details: [type] e.g.: value',
   tipo VARCHAR(50) NOT NULL DEFAULT 'Response' COMMENT 'Field type: Body, Query Params, Response',
   title VARCHAR(255) DEFAULT NULL COMMENT 'Optional title/description',
@@ -42,7 +43,9 @@ CREATE TABLE IF NOT EXISTS response_fields (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_metodo_endpoint (metodo, endpoint(255)),
   INDEX idx_descricao_null (descricao(1)),
-  INDEX idx_campo (campo(255))
+  INDEX idx_campo (campo(255)),
+  INDEX idx_elemento (elemento),
+  UNIQUE KEY unique_field (title(50), metodo, url(150), endpoint(150), tipo, campo(150))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ================================================================
@@ -118,6 +121,39 @@ CREATE TABLE IF NOT EXISTS field_dictionary (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ================================================================
+-- Table: failed_requests_401
+-- Stores requests that failed with 401 Unauthorized error
+-- ================================================================
+CREATE TABLE IF NOT EXISTS failed_requests_401 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  endpoint_id INT NOT NULL COMMENT 'FK to endpoints',
+  body TEXT DEFAULT NULL COMMENT 'Request body (JSON)',
+  title VARCHAR(255) DEFAULT NULL COMMENT 'Request title',
+  bearer_token TEXT DEFAULT NULL COMMENT 'Bearer token used in the request',
+  error_status INT NOT NULL DEFAULT 401 COMMENT 'HTTP error status code (401)',
+  error_message VARCHAR(512) DEFAULT NULL COMMENT 'Error status text (e.g., Unauthorized)',
+  error_response_body TEXT DEFAULT NULL COMMENT 'Response body from the failed request',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (endpoint_id) REFERENCES endpoints(id) ON DELETE CASCADE,
+  INDEX idx_endpoint_id (endpoint_id),
+  INDEX idx_created_at (created_at),
+  INDEX idx_error_status (error_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ================================================================
+-- Table: translated_fields
+-- Stores which fields have been translated by AI
+-- ================================================================
+CREATE TABLE IF NOT EXISTS translated_fields (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  response_field_id INT NOT NULL UNIQUE COMMENT 'FK to response_fields (unique to prevent duplicates)',
+  translated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'When the field was translated',
+  FOREIGN KEY (response_field_id) REFERENCES response_fields(id) ON DELETE CASCADE,
+  INDEX idx_response_field_id (response_field_id),
+  INDEX idx_translated_at (translated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ================================================================
 -- Default Data (Optional)
 -- ================================================================
 
@@ -132,11 +168,13 @@ CREATE TABLE IF NOT EXISTS field_dictionary (
 -- ================================================================
 -- Schema Information
 -- ================================================================
--- Total Tables: 6
+-- Total Tables: 8
 -- - endpoints: API endpoint definitions
 -- - response_fields: Extracted field data from responses
 -- - request_groups: Collection/group definitions
 -- - group_requests: Individual requests in groups (with FK constraints)
 -- - ai_provider_settings: AI rate limit configuration
 -- - field_dictionary: Excel imported field dictionary
+-- - failed_requests_401: Requests that failed with 401 Unauthorized error
+-- - translated_fields: Tracking of AI-translated fields
 -- ================================================================

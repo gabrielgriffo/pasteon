@@ -46,6 +46,37 @@ export class OllamaProvider {
   }
 
   /**
+   * Traduz uma descrição de inglês para Português do Brasil
+   */
+  async translateDescription(description: string): Promise<string> {
+    const prompt = this.buildTranslationPrompt(description);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.model,
+          prompt,
+          stream: false,
+          options: this.options,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama HTTP Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return this.cleanResponse(data.response);
+    } catch (error) {
+      throw new Error(
+        `Falha ao traduzir com Ollama: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      );
+    }
+  }
+
+  /**
    * Verifica se o Ollama está disponível e rodando
    */
   async isAvailable(): Promise<boolean> {
@@ -89,6 +120,26 @@ A descrição deve:
 - Ter no máximo 2 frases${complementarySection}
 
 Retorne APENAS a descrição, sem introduções ou explicações adicionais.`;
+  }
+
+  /**
+   * Constrói o prompt para tradução de descrições
+   */
+  private buildTranslationPrompt(description: string): string {
+    return `Você é um tradutor técnico especializado em documentação de APIs.
+
+Traduza a seguinte descrição técnica de API de inglês para Português do Brasil.
+
+DESCRIÇÃO EM INGLÊS:
+${description}
+
+REGRAS:
+- Mantenha termos técnicos apropriados (ex: "token", "endpoint", "array", "boolean")
+- Mantenha a formatação e pontuação
+- Seja preciso e natural em Português do Brasil
+- Não adicione explicações, apenas traduza
+
+Retorne APENAS a tradução em Português do Brasil.`;
   }
 
   /**

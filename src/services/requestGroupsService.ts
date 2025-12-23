@@ -9,11 +9,9 @@ const API_BASE_URL = '/api';
  * Interface para request completa (com dados do endpoint)
  */
 export interface GroupRequestWithEndpoint extends GroupRequest {
-  endpoint: {
-    id: number;
-    metodo: string;
-    url: string;
-  };
+  id: number;
+  metodo: string;
+  url: string;
 }
 
 /**
@@ -32,7 +30,9 @@ export interface RequestToSave {
 export async function getGroups(): Promise<RequestGroup[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/request-groups`);
-
+    console.log(`${API_BASE_URL}/request-groups`);
+    console.log(response);
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -134,8 +134,9 @@ export async function saveGroupRequests(
             },
             body: JSON.stringify({
               endpoint_id: req.endpointId,
-              body_json: req.body || null,
-              sort_order: req.orderIndex,
+              body: req.body || null,
+              title: req.title || null,
+              order_index: req.orderIndex,
             }),
           })
         )

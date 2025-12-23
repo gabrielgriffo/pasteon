@@ -39,6 +39,7 @@ export async function saveResponseFields(fields: FieldToSave[]): Promise<void> {
           campo: field.campo,
           detalhes: field.detalhes,
           descricao: '',
+          title: field.title || null,
         }),
       })
     );
@@ -207,6 +208,8 @@ export interface FieldStatistics {
   withDescription: number;
   withoutDescription: number;
   percentageWithDescription: number;
+  translated: number;
+  percentageTranslated: number;
 }
 
 export async function getFieldStatistics(): Promise<FieldStatistics> {
@@ -218,13 +221,88 @@ export async function getFieldStatistics(): Promise<FieldStatistics> {
     }
 
     const stats = await response.json();
+
+    // Get translation statistics
+    const translationStats = await getTranslationStatistics();
+
     return {
       total: stats.total,
       withDescription: stats.withDescription,
       withoutDescription: stats.withoutDescription,
       percentageWithDescription: parseFloat(stats.percentageDocumented),
+      translated: translationStats.translated,
+      percentageTranslated: translationStats.percentageTranslated,
     };
   } catch (error: any) {
     throw new Error(`Erro ao buscar estatísticas: ${error.message}`);
+  }
+}
+
+/**
+ * Busca campos com descrição que ainda não foram traduzidos
+ */
+export async function getUntranslatedFields(): Promise<ResponseField[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/response-fields/untranslated`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const fields = await response.json();
+    return fields;
+  } catch (error: any) {
+    throw new Error(`Erro ao buscar campos não traduzidos: ${error.message}`);
+  }
+}
+
+/**
+ * Marca um campo como traduzido
+ */
+export async function markFieldAsTranslated(id: number): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/response-fields/${id}/mark-translated`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+  } catch (error: any) {
+    throw new Error(`Erro ao marcar campo como traduzido: ${error.message}`);
+  }
+}
+
+/**
+ * Busca estatísticas de tradução
+ */
+export interface TranslationStatistics {
+  total: number;
+  withDescription: number;
+  translated: number;
+  percentageTranslated: number;
+}
+
+export async function getTranslationStatistics(): Promise<TranslationStatistics> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/response-fields/translation-statistics`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const stats = await response.json();
+    return {
+      total: stats.total,
+      withDescription: stats.withDescription,
+      translated: stats.translated,
+      percentageTranslated: parseFloat(stats.percentageTranslated),
+    };
+  } catch (error: any) {
+    throw new Error(`Erro ao buscar estatísticas de tradução: ${error.message}`);
   }
 }

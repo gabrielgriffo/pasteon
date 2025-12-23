@@ -33,6 +33,11 @@ interface ResponseTableProps {
 export function ResponseTable({ responses }: ResponseTableProps) {
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Helper para extrair elemento do campo
+  const extractElemento = (campo: string): string => {
+    return campo.includes('.') ? campo.split('.').pop() || campo : campo;
+  };
+
   const copyTableData = async () => {
     try {
       // Create tab-separated values for Excel without headers, including all responses
@@ -42,24 +47,28 @@ export function ResponseTable({ responses }: ResponseTableProps) {
         // First, add body fields
         response.bodyFields.forEach((bodyField) => {
           const tipo = response.method === 'GET' ? 'Query Params' : 'Body';
+          const elemento = extractElemento(bodyField.campo);
           rows.push([
             response.method,
             response.url,
             response.endpoint,
             tipo,
             bodyField.campo,
+            elemento,
             bodyField.detalhes
           ].join('\t')); // Tab-separated for Excel
         });
 
         // Then, add response fields
         response.campoRetorno.forEach((campo, index) => {
+          const elemento = extractElemento(campo);
           rows.push([
             response.method,
             response.url,
             response.endpoint,
             'Response',
             campo,
+            elemento,
             response.detalhes[index] || ''
           ].join('\t')); // Tab-separated for Excel
         });
@@ -157,6 +166,7 @@ export function ResponseTable({ responses }: ResponseTableProps) {
                     <TableHead className="font-medium">Endpoint</TableHead>
                     <TableHead className="font-medium">Tipo</TableHead>
                     <TableHead className="font-medium">Campo</TableHead>
+                    <TableHead className="font-medium">Elemento</TableHead>
                     <TableHead className="font-medium">Detalhes</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -169,6 +179,7 @@ export function ResponseTable({ responses }: ResponseTableProps) {
                         {/* Render body fields first */}
                         {response.bodyFields.map((bodyField, bodyFieldIndex) => {
                           const tipo = response.method === 'GET' ? 'Query Params' : 'Body';
+                          const elemento = extractElemento(bodyField.campo);
                           return (
                             <TableRow
                               key={`${responseIndex}-body-${bodyFieldIndex}`}
@@ -193,6 +204,9 @@ export function ResponseTable({ responses }: ResponseTableProps) {
                               <TableCell className="text-sm font-mono font-medium">
                                 {bodyField.campo}
                               </TableCell>
+                              <TableCell className="text-sm font-mono font-medium text-primary">
+                                {elemento}
+                              </TableCell>
                               <TableCell className="text-sm font-mono font-medium">
                                 {bodyField.detalhes}
                               </TableCell>
@@ -201,35 +215,41 @@ export function ResponseTable({ responses }: ResponseTableProps) {
                         })}
 
                         {/* Then render response fields */}
-                        {response.campoRetorno.map((campo, fieldIndex) => (
-                          <TableRow
-                            key={`${responseIndex}-response-${fieldIndex}`}
-                            className={fieldIndex === 0 && response.bodyFields.length === 0 && isFirstRow ? 'border-t-2 border-blue-200' : ''}
-                          >
-                            <TableCell>
-                              <Badge variant="outline" className={getMethodBadgeClass(response.method)}>
-                                {response.method}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm font-mono break-all">
-                              {response.url}
-                            </TableCell>
-                            <TableCell className="text-sm font-mono break-all">
-                              {response.endpoint}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={getTipoBadgeClass('Response')}>
-                                Response
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm font-mono font-medium">
-                              {campo}
-                            </TableCell>
-                            <TableCell className="text-sm font-mono font-medium">
-                              {response.detalhes[fieldIndex]}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {response.campoRetorno.map((campo, fieldIndex) => {
+                          const elemento = extractElemento(campo);
+                          return (
+                            <TableRow
+                              key={`${responseIndex}-response-${fieldIndex}`}
+                              className={fieldIndex === 0 && response.bodyFields.length === 0 && isFirstRow ? 'border-t-2 border-blue-200' : ''}
+                            >
+                              <TableCell>
+                                <Badge variant="outline" className={getMethodBadgeClass(response.method)}>
+                                  {response.method}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm font-mono break-all">
+                                {response.url}
+                              </TableCell>
+                              <TableCell className="text-sm font-mono break-all">
+                                {response.endpoint}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={getTipoBadgeClass('Response')}>
+                                  Response
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm font-mono font-medium">
+                                {campo}
+                              </TableCell>
+                              <TableCell className="text-sm font-mono font-medium text-primary">
+                                {elemento}
+                              </TableCell>
+                              <TableCell className="text-sm font-mono font-medium">
+                                {response.detalhes[fieldIndex]}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </>
                     );
                   })}
@@ -242,6 +262,7 @@ export function ResponseTable({ responses }: ResponseTableProps) {
               <span>
                 <strong>Dica:</strong> Use o botão de copiar para copiar os dados sem cabeçalhos,
                 prontos para colar diretamente no Excel com Ctrl+V. Linhas azuis separam diferentes requisições.
+                O campo <strong>Elemento</strong> mostra o último segmento do campo completo.
               </span>
             </div>
           </>

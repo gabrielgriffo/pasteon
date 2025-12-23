@@ -17,6 +17,7 @@ import {
   type RequestGroup,
   type RequestToSave,
 } from '@/services/requestGroupsService';
+import { saveFailedRequest } from '@/services/failedRequestsService';
 import { toast } from '@/utils/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,14 +69,14 @@ type HttpMethod = typeof HTTP_METHODS[number];
 
 /**
  * Converte URL externa para usar proxy local do Vite (contorna CORS)
- * Exemplo: https://usapi.spearwatch.com/rest-api/v1/users -> /api/rest-api/v1/users
+ * Exemplo: https://plus.dnb.com/v1/search/criteria -> /external-api/v1/search/criteria
  */
 function buildProxiedUrl(originalUrl: string): string {
   const PROXY_TARGET = import.meta.env.VITE_API_TARGET;
-  const PROXY_PATH = '/api';
+  const PROXY_PATH = '/external-api';
 
   // Se a URL começa com a URL base configurada no proxy, usa o proxy local
-  if (originalUrl.startsWith(PROXY_TARGET)) {
+  if (PROXY_TARGET && originalUrl.startsWith(PROXY_TARGET)) {
     const urlWithoutBase = originalUrl.substring(PROXY_TARGET.length);
     return `${PROXY_PATH}${urlWithoutBase}`;
   }
@@ -168,12 +169,14 @@ export function ApiTester() {
         return;
       }
 
+      console.log("groupRequests: ", groupRequests);
+      
       // Converte as requests do grupo para o formato da UI
       const newSelectedEndpoints: SelectedEndpoint[] = groupRequests.map((req, index) => ({
         id: Date.now() + index,
         endpointId: req.endpoint_id,
-        method: req.endpoint.metodo as HttpMethod,
-        url: req.endpoint.url,
+        method: req.metodo as HttpMethod,
+        url: req.url,
         body: req.body || '',
         title: req.title || '',
         error: null,
@@ -402,9 +405,54 @@ export function ApiTester() {
 
         // Usa proxy local para contornar CORS (funciona como Postman)
         const proxiedUrl = buildProxiedUrl(endpoint.url);
+
+        // Debug: log da request
+        console.log('🔍 Request Debug:', {
+          originalUrl: endpoint.url,
+          proxiedUrl,
+          method: endpoint.method,
+          headers,
+          body: options.body,
+        });
+
         const res = await fetch(proxiedUrl, options);
 
         if (!res.ok) {
+          // Captura o response body do erro antes de lançar exceção
+          let errorResponseBody = null;
+          try {
+            const errorText = await res.text();
+            errorResponseBody = errorText;
+
+            // Debug: log do erro
+            console.error('❌ Response Error:', {
+              status: res.status,
+              statusText: res.statusText,
+              responseBody: errorResponseBody,
+              headers: Object.fromEntries(res.headers.entries()),
+            });
+          } catch {
+            // Ignorar erro ao ler response body
+          }
+
+          // Se for erro 401, salva no banco de dados
+          if (res.status === 401 && endpoint.endpointId) {
+            try {
+              await saveFailedRequest({
+                endpoint_id: endpoint.endpointId,
+                body: endpoint.body || undefined,
+                title: endpoint.title || undefined,
+                bearer_token: savedToken || undefined,
+                error_status: res.status,
+                error_message: res.statusText,
+                error_response_body: errorResponseBody || undefined,
+              });
+              console.log(`✓ Request 401 salva no banco: ${endpoint.title || endpoint.url}`);
+            } catch (saveError) {
+              console.error('Erro ao salvar request 401:', saveError);
+            }
+          }
+
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
 

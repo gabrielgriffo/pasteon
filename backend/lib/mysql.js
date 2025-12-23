@@ -41,8 +41,6 @@ async function executeWithCharset(sql, params = []) {
     const [charsetVars] = await connection.query(
       "SHOW VARIABLES WHERE Variable_name IN ('character_set_client', 'character_set_connection', 'character_set_results', 'collation_connection')"
     );
-    console.log('🔍 Connection charset variables:');
-    charsetVars.forEach(v => console.log(`   ${v.Variable_name} = ${v.Value}`));
 
     // Log first few params for debugging (truncated)
     if (params.length > 0) {

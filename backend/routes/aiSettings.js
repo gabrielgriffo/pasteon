@@ -26,7 +26,17 @@ router.get('/:provider', async (req, res) => {
 // POST /api/ai-settings - Create or update AI provider settings
 router.post('/', async (req, res) => {
   try {
-    const { provider, requests_per_minute, requests_per_day } = req.body;
+    const {
+      provider,
+      rpm_enabled,
+      rpm_limit,
+      current_rpm,
+      last_reset_minute,
+      rpd_enabled,
+      rpd_limit,
+      current_rpd,
+      last_reset_day,
+    } = req.body;
 
     if (!provider) {
       return res.status(400).json({ error: 'Provider is required' });
@@ -42,9 +52,27 @@ router.post('/', async (req, res) => {
       // Update existing
       await execute(
         `UPDATE ai_provider_settings
-         SET requests_per_minute = ?, requests_per_day = ?, updated_at = CURRENT_TIMESTAMP
+         SET rpm_enabled = ?,
+             rpm_limit = ?,
+             current_rpm = ?,
+             last_reset_minute = ?,
+             rpd_enabled = ?,
+             rpd_limit = ?,
+             current_rpd = ?,
+             last_reset_day = ?,
+             updated_at = CURRENT_TIMESTAMP
          WHERE provider = ?`,
-        [requests_per_minute || null, requests_per_day || null, provider]
+        [
+          rpm_enabled ?? false,
+          rpm_limit ?? 0,
+          current_rpm ?? 0,
+          last_reset_minute ?? Date.now(),
+          rpd_enabled ?? false,
+          rpd_limit ?? 0,
+          current_rpd ?? 0,
+          last_reset_day ?? new Date().toISOString().split('T')[0],
+          provider,
+        ]
       );
 
       const updated = await querySingle(
@@ -56,9 +84,21 @@ router.post('/', async (req, res) => {
     } else {
       // Insert new
       const insertId = await insert(
-        `INSERT INTO ai_provider_settings (provider, requests_per_minute, requests_per_day)
-         VALUES (?, ?, ?)`,
-        [provider, requests_per_minute || null, requests_per_day || null]
+        `INSERT INTO ai_provider_settings
+         (provider, rpm_enabled, rpm_limit, current_rpm, last_reset_minute,
+          rpd_enabled, rpd_limit, current_rpd, last_reset_day)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          provider,
+          rpm_enabled ?? false,
+          rpm_limit ?? 0,
+          current_rpm ?? 0,
+          last_reset_minute ?? Date.now(),
+          rpd_enabled ?? false,
+          rpd_limit ?? 0,
+          current_rpd ?? 0,
+          last_reset_day ?? new Date().toISOString().split('T')[0],
+        ]
       );
 
       const newSettings = await querySingle(

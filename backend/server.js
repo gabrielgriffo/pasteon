@@ -11,6 +11,8 @@ import responseFieldsRouter from './routes/responseFields.js';
 import requestGroupsRouter from './routes/requestGroups.js';
 import aiSettingsRouter from './routes/aiSettings.js';
 import dictionaryRouter from './routes/dictionary.js';
+import failedRequestsRouter from './routes/failedRequests.js';
+import manualDocsRouter from './routes/manualDocs.js';
 
 // Initialize Express app
 const app = express();
@@ -39,6 +41,8 @@ app.use('/api/response-fields', responseFieldsRouter);
 app.use('/api/request-groups', requestGroupsRouter);
 app.use('/api/ai-settings', aiSettingsRouter);
 app.use('/api/dictionary', dictionaryRouter);
+app.use('/api/failed-requests', failedRequestsRouter);
+app.use('/api/manual-docs', manualDocsRouter);
 
 // 404 handler
 app.use((req, res) => {

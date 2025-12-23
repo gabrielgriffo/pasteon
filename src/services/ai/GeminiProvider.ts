@@ -74,6 +74,62 @@ export class GeminiProvider {
   }
 
   /**
+   * Traduz uma descrição de inglês para Português do Brasil
+   */
+  async translateDescription(description: string): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error('API Key do Gemini não configurada. Configure VITE_GEMINI_API_KEY no arquivo .env');
+    }
+
+    const prompt = this.buildTranslationPrompt(description);
+
+    try {
+      const url = `${this.baseUrl}/${this.model}:generateContent?key=${this.apiKey}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: this.options.temperature,
+            maxOutputTokens: this.options.maxOutputTokens,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 429) {
+          throw new Error('Rate limit atingido. Aguarde alguns segundos e tente novamente.');
+        }
+
+        throw new Error(
+          `Gemini HTTP Error: ${response.status} - ${errorData.error?.message || 'Erro desconhecido'}`
+        );
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Resposta vazia do Gemini');
+      }
+
+      return this.cleanResponse(text);
+    } catch (error) {
+      throw new Error(
+        `Falha ao traduzir com Gemini: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      );
+    }
+  }
+
+  /**
    * Verifica se o Gemini está disponível (API Key válida)
    */
   async isAvailable(): Promise<boolean> {
@@ -129,6 +185,26 @@ A descrição deve:
 - Ter no máximo 2 frases${complementarySection}
 
 Retorne APENAS a descrição, sem introduções ou explicações adicionais.`;
+  }
+
+  /**
+   * Constrói o prompt para tradução de descrições
+   */
+  private buildTranslationPrompt(description: string): string {
+    return `Você é um tradutor técnico especializado em documentação de APIs.
+
+Traduza a seguinte descrição técnica de API de inglês para Português do Brasil.
+
+DESCRIÇÃO EM INGLÊS:
+${description}
+
+REGRAS:
+- Mantenha termos técnicos apropriados (ex: "token", "endpoint", "array", "boolean")
+- Mantenha a formatação e pontuação
+- Seja preciso e natural em Português do Brasil
+- Não adicione explicações, apenas traduza
+
+Retorne APENAS a tradução em Português do Brasil.`;
   }
 
   /**

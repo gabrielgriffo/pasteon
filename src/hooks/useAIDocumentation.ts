@@ -323,7 +323,7 @@ export function useAIDocumentation() {
       }
 
       // Formata em TSV (Tab-Separated Values) para colar no Excel
-      const header = 'TÍTULO\tMÉTODO\tURL\tENDPOINT\tTIPO\tCAMPO\tDETALHES\tDESCRIÇÃO';
+      const header = 'TÍTULO\tMÉTODO\tURL\tENDPOINT\tTIPO\tCAMPO\tELEMENTO\tDETALHES\tDESCRIÇÃO';
 
       const rows = fields.map((field) => {
         const titulo = field.title || '';
@@ -332,11 +332,12 @@ export function useAIDocumentation() {
         const endpoint = field.endpoint;
         const tipo = field.tipo; // Body, Query Params, ou Response
         const campo = field.campo;
+        const elemento = field.elemento || '';
         const detalhes = field.detalhes;
-        const descricao = field.descricao || '';
+        const descricao = field.descricao?.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim() || '';
 
         // Separar colunas por TAB (\t) para Excel reconhecer automaticamente
-        return `${titulo}\t${metodo}\t${url}\t${endpoint}\t${tipo}\t${campo}\t${detalhes}\t${descricao}`;
+        return `${titulo}\t${metodo}\t${url}\t${endpoint}\t${tipo}\t${campo}\t${elemento}\t${detalhes}\t${descricao}`;
       });
 
       const table = [header, ...rows].join('\n');

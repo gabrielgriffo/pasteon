@@ -141,6 +141,34 @@ class AIService {
   }
 
   /**
+   * Traduz uma descrição de inglês para Português do Brasil
+   */
+  async translateDescription(description: string): Promise<GenerationResult> {
+    const provider = this.getActiveProvider();
+    const startTime = Date.now();
+
+    try {
+      const translatedDescription = await provider.translateDescription(description);
+
+      return {
+        success: true,
+        description: translatedDescription,
+        provider: this.currentProvider,
+        providerName: provider.getName(),
+        elapsedTime: Date.now() - startTime,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        provider: this.currentProvider,
+        providerName: provider.getName(),
+        elapsedTime: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
    * Verifica o status de todos os providers
    */
   async checkProviders(): Promise<Record<AIProvider, ProviderStatus>> {
